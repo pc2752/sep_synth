@@ -96,15 +96,15 @@ def train(_):
             D_fake = modules.GAN_discriminator(voc_output_2,singer_embedding, phone_onehot_labels, f0_input_placeholder)
 
         with tf.variable_scope('Sep_gen') as scope: 
-            voc_output = modules.GAN_generator(input_placeholder)
+            voc_output = modules.sep_network(input_placeholder)
             # scope.reuse_variables()
             # voc_output_2_2 = modules.GAN_generator(voc_output_3_decoded, singer_onehot_labels, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
 
 
         with tf.variable_scope('Sep_dis') as scope: 
-            D_sep_real = modules.GAN_discriminator((feats_placeholder-0.5)*2, input_placeholder)
+            D_sep_real = modules.sep_discriminator((feats_placeholder-0.5)*2, input_placeholder)
             scope.reuse_variables()
-            D_sep_fake = modules.GAN_discriminator(voc_output, input_placeholder)
+            D_sep_fake = modules.sep_discriminator(voc_output, input_placeholder)
 
         # import pdb;pdb.set_trace()
 
@@ -371,12 +371,12 @@ def train(_):
 
                     for critic_itr in range(n_critic):
                         feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
-                                phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats_placeholder}
-                        sess.run([dis_sep_train_function dis_train_function], feed_dict = feed_dict)
-                        sess.run([clip_discriminator_var_op, clip_discriminator_var_op_sep] feed_dict = feed_dict)
+                                phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats}
+                        sess.run([dis_sep_train_function, dis_train_function], feed_dict = feed_dict)
+                        sess.run([clip_discriminator_var_op, clip_discriminator_var_op_sep], feed_dict = feed_dict)
 
                     feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
-                    phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats_placeholder}
+                    phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats}
 
 
                     _, step_gen_loss, step_gen_sep_loss = sess.run([gen_train_function,G_loss_GAN, G_loss_sep], feed_dict = feed_dict)
@@ -436,7 +436,7 @@ def train(_):
                     np.random.shuffle(phos_shu)
 
                     feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
-                    phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats_placeholder}
+                    phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats}
 
                     step_pho_loss, step_pho_acc = sess.run([pho_loss, pho_acc], feed_dict= feed_dict)
                     step_gen_loss, step_gen_sep_loss = sess.run([G_loss_GAN, G_loss_sep], feed_dict = feed_dict)

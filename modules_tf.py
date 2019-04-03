@@ -581,6 +581,60 @@ def phone_network(inputs):
 #     return output
 
 
+def sep_discriminator(inputs, conds):
+
+
+    # phones = tf.layers.dense(phones, config.wavenet_filters, name = "D_phone", kernel_initializer=tf.random_normal_initializer(stddev=0.02))
+
+    # f0_notation = tf.layers.dense(f0_notation, config.wavenet_filters, name = "D_f0", kernel_initializer=tf.random_normal_initializer(stddev=0.02))
+    # singer_label = tf.tile(tf.reshape(singer_label,[config.batch_size,1,-1]),[1,config.max_phr_len,1])
+
+    inputs = tf.concat([inputs, conds], axis = -1)
+
+    inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
+
+    inputs = tf.nn.leaky_relu(tf.layers.dense(inputs, config.wavenet_filters, name = "P_in", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    # conv1 =  selu(tf.layers.conv2d(inputs, 32, (5,1), strides=(2,1),  padding = 'same', name = "G_1", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    # conv5 =  selu(tf.layers.conv2d(conv1, 64, (5,1), strides=(2,1),  padding = 'same', name = "G_5", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+    # # import pdb;pdb.set_trace()
+
+    # conv6 =  selu(tf.layers.conv2d(conv5, 128, (5,1), strides=(2,1),  padding = 'same', name = "G_6", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    # conv7 = selu(tf.layers.conv2d(conv6, 256, (5,1), strides=(2,1),  padding = 'same', name = "G_7", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    # conv8 = selu(tf.layers.conv2d(conv7, 512, (5,1), strides=(2,1),  padding = 'same', name = "G_8", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+
+    # # encoded = tf.layers.max_pooling1d(conv3, pool_size=2, strides=2, padding='same', name = "s7")
+
+    # encoded = tf.reshape(conv8, [config.batch_size, -1], name = "s8")
+
+    conv1 =  tf.nn.leaky_relu(tf.layers.conv2d(inputs, 32, (4,1), strides=(2,1),  padding = 'same', name = "G_1", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    conv5 =  tf.nn.leaky_relu(tf.layers.conv2d(conv1, 64, (4,1), strides=(2,1),  padding = 'same', name = "G_5", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+    # import pdb;pdb.set_trace()
+
+    conv6 =  tf.nn.leaky_relu(tf.layers.conv2d(conv5, 128, (4,1), strides=(2,1),  padding = 'same', name = "G_6", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    conv7 = tf.nn.leaky_relu(tf.layers.conv2d(conv6, 256, (4,1), strides=(2,1),  padding = 'same', name = "G_7", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    conv8 = tf.nn.leaky_relu(tf.layers.conv2d(conv7, 1, (1,1), strides=(1,1),  padding = 'same', name = "G_8", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    # conv9 = selu(tf.layers.conv2d(conv8, 16, (4,1), strides=(1,1),  padding = 'valid', name = "G_9", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+
+    # encoded = tf.layers.max_pooling1d(conv3, pool_size=2, strides=2, padding='same', name = "s7")
+
+    # encoded = tf.reshape(conv9, [config.batch_size, -1], name = "s8")
+
+
+    # encoded_1= selu(tf.layers.dense(encoded, 256, name = "s9", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    # import pdb;pdb.set_trace()
+
+    return conv8
 
 
 def GAN_discriminator(inputs, singer_label, phones, f0_notation):
