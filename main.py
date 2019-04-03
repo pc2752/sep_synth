@@ -45,6 +45,8 @@ def train(_):
 
         output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,64),name='output_placeholder')
 
+        feats_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,66),name='feats_placeholder')
+
 
         f0_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 1),name='f0_input_placeholder')
 
@@ -64,7 +66,7 @@ def train(_):
 
         with tf.variable_scope('phone_Model') as scope:
             # regularizer = tf.contrib.layers.l2_regularizer(scale=0.1)
-            pho_logits = modules.phone_network(input_placeholder)
+            pho_logits = modules.phone_network(feats_placeholder)
             pho_classes = tf.argmax(pho_logits, axis=-1)
             pho_probs = tf.nn.softmax(pho_logits)
 
@@ -77,7 +79,7 @@ def train(_):
             
 
         with tf.variable_scope('singer_Model') as scope:
-            singer_embedding, singer_logits = modules.singer_network(input_placeholder)
+            singer_embedding, singer_logits = modules.singer_network(feats_placeholder)
             singer_classes = tf.argmax(singer_logits, axis=-1)
             singer_probs = tf.nn.softmax(singer_logits)
 
@@ -93,6 +95,16 @@ def train(_):
             scope.reuse_variables()
             D_fake = modules.GAN_discriminator(voc_output_2,singer_embedding, phone_onehot_labels, f0_input_placeholder)
 
+        with tf.variable_scope('Sep_gen') as scope: 
+            voc_output = modules.GAN_generator(input_placeholder)
+            # scope.reuse_variables()
+            # voc_output_2_2 = modules.GAN_generator(voc_output_3_decoded, singer_onehot_labels, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
+
+
+        with tf.variable_scope('Sep_dis') as scope: 
+            D_sep_real = modules.GAN_discriminator((feats_placeholder-0.5)*2, input_placeholder)
+            scope.reuse_variables()
+            D_sep_fake = modules.GAN_discriminator(voc_output, input_placeholder)
 
         # import pdb;pdb.set_trace()
 
@@ -104,6 +116,10 @@ def train(_):
         g_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Generator")
 
         d_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Discriminator")
+
+        g_sep_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Sep_gen")
+
+        d_sep_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Sep_dis")
 
         phone_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="phone_Model")
 
@@ -167,6 +183,8 @@ def train(_):
 
 
         D_loss = tf.reduce_mean(D_real +1e-12) - tf.reduce_mean(D_fake+1e-12)
+
+        D_sep_loss = tf.reduce_mean(D_sep_real +1e-12) - tf.reduce_mean(D_sep_fake+1e-12)
         # -tf.reduce_mean(D_fake_real+1e-12)*0.001
 
         dis_summary = tf.summary.scalar('dis_loss', D_loss)
@@ -181,6 +199,8 @@ def train(_):
         # + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5))*(1-input_placeholder[:,:,-1:])) *0.00001
 
         G_loss_GAN = tf.reduce_mean(D_fake+1e-12) + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5)))/(config.batch_size*config.max_phr_len*64)
+
+        G_loss_sep = tf.reduce_mean(D_sep_fake+1e-12) + tf.reduce_sum(tf.abs(feats_placeholder- (voc_output/2+0.5)))/(config.batch_size*config.max_phr_len*66)
                      # + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= output_placeholder, logits=voc_output)) *0.000005
         #
 
@@ -221,6 +241,10 @@ def train(_):
 
         global_step_gen = tf.Variable(0, name='global_step_gen', trainable=False)
 
+        global_step_sep_dis = tf.Variable(0, name='global_step_dis', trainable=False)
+
+        global_step_sep_gen = tf.Variable(0, name='global_step_gen', trainable=False)
+
         global_step_singer = tf.Variable(0, name='global_step_singer', trainable=False)
 
 
@@ -237,6 +261,10 @@ def train(_):
         dis_optimizer = tf.train.RMSPropOptimizer(learning_rate=5e-5)
 
         gen_optimizer = tf.train.RMSPropOptimizer(learning_rate=5e-5)
+
+        dis_sep_optimizer = tf.train.RMSPropOptimizer(learning_rate=5e-5)
+
+        gen_sep_optimizer = tf.train.RMSPropOptimizer(learning_rate=5e-5)
         # GradientDescentOptimizer
 
 
@@ -255,7 +283,13 @@ def train(_):
 
         gen_train_function = gen_optimizer.minimize(G_loss_GAN, global_step = global_step_gen, var_list=g_params)
 
+        dis_sep_train_function = dis_sep_optimizer.minimize(D_sep_loss, global_step = global_step_sep_dis, var_list=d_sep_params)
+
+        gen_sep_rain_function = gen_sep_optimizer.minimize(G_loss_sep, global_step = global_step_sep_gen, var_list=g_sep_params)
+
         clip_discriminator_var_op = [var.assign(tf.clip_by_value(var, -0.01, 0.01)) for var in d_params]
+
+        clip_discriminator_var_op_sep = [var.assign(tf.clip_by_value(var, -0.01, 0.01)) for var in d_sep_params]
 
         
 
@@ -299,6 +333,9 @@ def train(_):
             epoch_re_loss = 0
             epoch_dis_loss = 0
 
+            epoch_sep_gen_loss = 0
+            epoch_sep_dis_loss = 0
+
             epoch_pho_acc = 0
             epoch_gen_acc = 0
             epoch_singer_acc = 0
@@ -311,6 +348,9 @@ def train(_):
             val_epoch_pho_acc = 0
             val_epoch_gen_acc = 0
             val_epoch_singer_acc = 0
+
+            val_epoch_sep_gen_loss = 0
+            val_epoch_sep_dis_loss = 0
 
 
             with tf.variable_scope('Training'):
@@ -331,17 +371,17 @@ def train(_):
 
                     for critic_itr in range(n_critic):
                         feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
-                                phoneme_labels:phos, singer_labels: singer_ids}
-                        sess.run(dis_train_function, feed_dict = feed_dict)
-                        sess.run(clip_discriminator_var_op, feed_dict = feed_dict)
+                                phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats_placeholder}
+                        sess.run([dis_sep_train_function dis_train_function], feed_dict = feed_dict)
+                        sess.run([clip_discriminator_var_op, clip_discriminator_var_op_sep] feed_dict = feed_dict)
 
                     feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
-                    phoneme_labels:phos, singer_labels: singer_ids}
+                    phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats_placeholder}
 
 
-                    _, step_gen_loss, step_gen_acc = sess.run([gen_train_function,G_loss_GAN, G_accuracy], feed_dict = feed_dict)
+                    _, step_gen_loss, step_gen_sep_loss = sess.run([gen_train_function,G_loss_GAN, G_loss_sep], feed_dict = feed_dict)
                     # if step_gen_acc>0.3:
-                    step_dis_loss, step_dis_acc= sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
+                    step_dis_loss, step_dis_sep_loss= sess.run([D_loss, D_sep_loss], feed_dict = feed_dict)
                     _,_, step_pho_loss, step_pho_acc, step_sing_loss, step_sing_acc = sess.run([pho_train_function, singer_train_function, pho_loss, pho_acc, singer_loss, singer_acc], feed_dict= feed_dict)
                     # else: 
                         # step_dis_loss, step_dis_acc = sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
@@ -354,7 +394,8 @@ def train(_):
                     epoch_dis_loss+=step_dis_loss
 
                     epoch_pho_acc+=step_pho_acc[0]
-                    epoch_gen_acc+=step_gen_acc
+                    epoch_sep_gen_loss+=step_gen_sep_loss
+                    epoch_sep_dis_loss+=step_dis_sep_loss
                     epoch_singer_acc+=step_sing_acc[0]
 
 
@@ -369,7 +410,7 @@ def train(_):
 
 
                 epoch_pho_acc = epoch_pho_acc/config.batches_per_epoch_train
-                epoch_gen_acc = epoch_gen_acc/config.batches_per_epoch_train
+                epoch_sep_gen_loss = epoch_sep_gen_loss/config.batches_per_epoch_train
                 epoch_singer_acc = epoch_singer_acc/config.batches_per_epoch_train
                 summary_str = sess.run(summary, feed_dict=feed_dict)
             # import pdb;pdb.set_trace()
@@ -394,19 +435,20 @@ def train(_):
 
                     np.random.shuffle(phos_shu)
 
-                    feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0,rand_input_placeholder: np.random.uniform(-1.0,1.0,size=[30,config.max_phr_len,4]),
-                    phoneme_labels:phos, singer_labels: singer_ids}
+                    feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
+                    phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats_placeholder}
 
                     step_pho_loss, step_pho_acc = sess.run([pho_loss, pho_acc], feed_dict= feed_dict)
-                    step_gen_loss, step_gen_acc = sess.run([G_loss_GAN, G_accuracy], feed_dict = feed_dict)
-                    step_dis_loss, step_sing_acc = sess.run([D_loss, singer_acc_val], feed_dict = feed_dict)
+                    step_gen_loss, step_gen_sep_loss = sess.run([G_loss_GAN, G_loss_sep], feed_dict = feed_dict)
+                    step_dis_loss, step_sing_acc, step_dis_sep_loss = sess.run([D_loss, singer_acc_val, D_sep_loss], feed_dict = feed_dict)
 
                     val_epoch_pho_loss+=step_pho_loss
                     val_epoch_gen_loss+=step_gen_loss
                     val_epoch_dis_loss+=step_dis_loss
 
                     val_epoch_pho_acc+=step_pho_acc[0]
-                    val_epoch_gen_acc+=step_gen_acc
+                    val_epoch_sep_gen_loss += step_gen_sep_loss
+                    val_epoch_sep_dis_loss += step_dis_sep_loss
                     val_epoch_singer_acc+=step_sing_acc[0]
 
 
@@ -420,7 +462,8 @@ def train(_):
                 val_epoch_dis_loss = val_epoch_dis_loss/config.batches_per_epoch_val
 
                 val_epoch_pho_acc = val_epoch_pho_acc/config.batches_per_epoch_val
-                val_epoch_gen_acc = val_epoch_gen_acc/config.batches_per_epoch_val
+                val_epoch_sep_gen_loss = val_epoch_sep_gen_loss/config.batches_per_epoch_val
+                val_epoch_sep_dis_loss = val_epoch_sep_dis_loss/config.batches_per_epoch_val
                 val_epoch_singer_acc = val_epoch_singer_acc/config.batches_per_epoch_val
 
 
@@ -437,14 +480,19 @@ def train(_):
                 print('epoch %d: Phone Loss = %.10f (%.3f sec)' % (epoch+1, epoch_pho_loss, duration))
                 print('        : Phone Accuracy = %.10f ' % (epoch_pho_acc))
                 # print('        : Recon Loss = %.10f ' % (epoch_re_loss))
+                print('        : Gen Sep Loss = %.10f ' % (epoch_sep_gen_loss))
+                print('        : Dis Sep Loss = %.10f ' % (epoch_sep_dis_loss))
                 print('        : Gen Loss = %.10f ' % (epoch_gen_loss))
-                print('        : Gen Accuracy = %.10f ' % (epoch_gen_acc))
                 print('        : Dis Loss = %.10f ' % (epoch_dis_loss))
                 print('        : Singer Accuracy = %.10f ' % (epoch_singer_acc))
                 # print('        : Dis Accuracy Fake = %.10f ' % (epoch_dis_acc_fake))
                 print('        : Val Phone Accuracy = %.10f ' % (val_epoch_pho_acc))
+
+                print('        : Val Gen Sep Loss = %.10f ' % (val_epoch_sep_gen_loss))
+                print('        : Val Dis Sep Loss = %.10f ' % (val_epoch_sep_dis_loss))
+
+
                 print('        : Val Gen Loss = %.10f ' % (val_epoch_gen_loss))
-                print('        : Val Gen Accuracy = %.10f ' % (val_epoch_gen_acc))
                 print('        : Val Dis Loss = %.10f ' % (val_epoch_dis_loss))
                 print('        : Val Singer Accuracy = %.10f ' % (val_epoch_singer_acc))
 

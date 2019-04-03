@@ -413,11 +413,80 @@ def final_net(singer_label, f0_notation, phones):
     return output
 
 
-def phone_network(inputs):
+def sep_network(inputs):
 
     inputs = tf.layers.dense(inputs, config.wavenet_filters, name = "P_in")
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
+
+    # rand = tf.layers.dense(rand, config.wavenet_filters, name = "G_rand", kernel_initializer=tf.random_normal_initializer(stddev=0.02))
+
+    conv1 =  tf.nn.relu(tf.layers.conv2d(inputs, 32, (4,1), strides=(2,1),  padding = 'same', name = "G_1", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    conv5 =  tf.nn.relu(tf.layers.conv2d(conv1, 64, (4,1), strides=(2,1),  padding = 'same', name = "G_5", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+    # import pdb;pdb.set_trace()
+
+    conv6 =  tf.nn.relu(tf.layers.conv2d(conv5, 128, (4,1), strides=(2,1),  padding = 'same', name = "G_6", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+    
+    conv7 = tf.nn.relu(tf.layers.conv2d(conv6, 256, (4,1), strides=(2,1),  padding = 'same', name = "G_7", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    conv8 = tf.nn.relu(tf.layers.conv2d(conv7, 512, (4,1), strides=(2,1),  padding = 'same', name = "G_8", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    conv9 = tf.nn.relu(tf.layers.conv2d(conv7, 1024, (4,1), strides=(1,1),  padding = 'valid', name = "G_9", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+
+    deconv1 = tf.image.resize_images(conv9, size=(4,1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+    deconv1 = tf.nn.relu(tf.layers.conv2d(deconv1, 1024, (4,1), strides=(1,1),  padding = 'same', name = "G_dec1", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    deconv1 = tf.concat([deconv1, conv8], axis = -1)
+
+    deconv2 = tf.image.resize_images(deconv1, size=(8,1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+    deconv2 = tf.nn.relu(tf.layers.conv2d(deconv2, 512, (4,1), strides=(1,1),  padding = 'same', name = "G_dec2", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    deconv2 = tf.concat([deconv2, conv7], axis = -1)
+
+
+    deconv3 = tf.image.resize_images(deconv2, size=(16,1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+    deconv3 = tf.nn.relu(tf.layers.conv2d(deconv3, 256, (4,1), strides=(1,1),  padding = 'same', name = "G_dec3", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    deconv3 = tf.concat([deconv3, conv6], axis = -1)
+
+
+    deconv4 = tf.image.resize_images(deconv3, size=(32,1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+    deconv4 = tf.nn.relu(tf.layers.conv2d(deconv4, 128, (4,1), strides=(1,1),  padding = 'same', name = "G_dec4", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    deconv4 = tf.concat([deconv4, conv5], axis = -1)
+
+
+    deconv5 = tf.image.resize_images(deconv4, size=(64,1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+    deconv5 = tf.nn.relu(tf.layers.conv2d(deconv5, 64, (4,1), strides=(1,1),  padding = 'same', name = "G_dec5", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    deconv5 = tf.concat([deconv5, conv1], axis = -1)
+
+    deconv6= tf.image.resize_images(deconv5, size=(128,1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+    deconv6 = tf.nn.relu(tf.layers.conv2d(deconv6, 64, (4,1), strides=(1,1),  padding = 'same', name = "G_dec6", kernel_initializer=tf.random_normal_initializer(stddev=0.02)))
+
+    deconv6 = tf.concat([deconv6, inputs], axis = -1)
+
+    # output = tf.nn.relu(tf.layers.conv2d(deconv5 , config.wavenet_filters, 1, strides=1,  padding = 'same', name = "P_o"))
+
+    output = tf.layers.conv2d(deconv6, 64, 1, strides=1,  padding = 'same', name = "P_o_2", activation = None)
+
+    output = tf.reshape(output, [config.batch_size, config.max_phr_len, -1])
+
+    output = tf.layers.dense(output, 66, name = "P_F")
+
+    return output
+
+def phone_network(inputs):
+
+    inputs = tf.layers.dense(inputs, config.wavenet_filters, name = "P_in")
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
 
