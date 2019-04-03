@@ -380,7 +380,7 @@ def train(_):
 
             with tf.variable_scope('Validation'):
 
-                for feats, f0, phos, singer_ids in val_generator:
+                for feats, f0, phos, singer_ids, mix_in in val_generator:
 
                     pho_one_hot = one_hotize(phos, max_index=42)
 
@@ -394,7 +394,7 @@ def train(_):
 
                     np.random.shuffle(phos_shu)
 
-                    feed_dict = {input_placeholder: feats, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0,rand_input_placeholder: np.random.uniform(-1.0,1.0,size=[30,config.max_phr_len,4]),
+                    feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0,rand_input_placeholder: np.random.uniform(-1.0,1.0,size=[30,config.max_phr_len,4]),
                     phoneme_labels:phos, singer_labels: singer_ids}
 
                     step_pho_loss, step_pho_acc = sess.run([pho_loss, pho_acc], feed_dict= feed_dict)
