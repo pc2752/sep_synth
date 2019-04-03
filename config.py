@@ -14,7 +14,7 @@ wav_dir_vctk_lab = '../datasets/VCTK/VCTK_files/VCTK-Corpus/forPritish/'
 voice_dir = '../ss_synthesis/voice/'
 backing_dir = '../ss_synthesis/backing/'
 
-log_dir = './log/'
+log_dir = './log_stft/'
 
 # log_dir = '../ss_synthesis/log_cross_GANandL1/'
 
@@ -108,7 +108,7 @@ split = 0.9
 augment = True
 aug_prob = 0.5
 
-noise_threshold = 0.005 #0.7 for the unnormalized features
+noise_threshold = 0.4 #0.7 for the unnormalized features
 pred_mode = 'all'
 
 # Hyperparameters

@@ -40,7 +40,7 @@ def train(_):
     min_feat = np.array(stat_file["feats_minimus"])
     with tf.Graph().as_default():
         
-        input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,66),name='input_placeholder')
+        input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,513),name='input_placeholder')
         tf.summary.histogram('inputs', input_placeholder)
 
         output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,64),name='output_placeholder')
@@ -315,27 +315,27 @@ def train(_):
 
             with tf.variable_scope('Training'):
 
-                for feats, f0, phos, singer_ids in data_generator:
+                for feats, f0, phos, singer_ids, mix_in in data_generator:
 
                     pho_one_hot = one_hotize(phos, max_index=42)
 
                     f0 = f0.reshape([config.batch_size, config.max_phr_len, 1])
 
-                    sing_id_shu = np.copy(singer_ids)
+                    # sing_id_shu = np.copy(singer_ids)
 
-                    phos_shu = np.copy(phos)
+                    # phos_shu = np.copy(phos)
 
-                    np.random.shuffle(sing_id_shu)
+                    # np.random.shuffle(sing_id_shu)
 
-                    np.random.shuffle(phos_shu)
+                    # np.random.shuffle(phos_shu)
 
                     for critic_itr in range(n_critic):
-                        feed_dict = {input_placeholder: feats, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
+                        feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
                                 phoneme_labels:phos, singer_labels: singer_ids}
                         sess.run(dis_train_function, feed_dict = feed_dict)
                         sess.run(clip_discriminator_var_op, feed_dict = feed_dict)
 
-                    feed_dict = {input_placeholder: feats, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
+                    feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
                     phoneme_labels:phos, singer_labels: singer_ids}
 
 
@@ -345,6 +345,8 @@ def train(_):
                     _,_, step_pho_loss, step_pho_acc, step_sing_loss, step_sing_acc = sess.run([pho_train_function, singer_train_function, pho_loss, pho_acc, singer_loss, singer_acc], feed_dict= feed_dict)
                     # else: 
                         # step_dis_loss, step_dis_acc = sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
+
+                    # import pdb;pdb.set_trace()
 
                     epoch_pho_loss+=step_pho_loss
                     # epoch_re_loss+=step_re_loss
@@ -639,7 +641,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
         # # import pdb;pdb.set_trace()
         gan_op = np.ascontiguousarray(gan_op)
 
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
 
         # pho_op = np.ascontiguousarray(pho_op)
 

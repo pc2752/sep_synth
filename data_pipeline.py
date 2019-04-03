@@ -102,6 +102,8 @@ def data_gen(mode = 'Train', sec_mode = 0):
         targets_singers = []
         pho_targs = []
 
+        mix_in = []
+
         # start_time = time.time()
         if k == num_batches-1 and mode =="Train":
             file_list = voc_list
@@ -116,11 +118,10 @@ def data_gen(mode = 'Train', sec_mode = 0):
             voc_file = h5py.File(config.voice_dir+voc_to_open, "r")
 
 
-            # voc_stft = np.array(voc_file['voc_stft'])
+            voc_stft = np.array(voc_file['voc_stft'])
 
             # voc_stft_phase = np.array(voc_file['voc_stft_phase'])
 
-            # import pdb;pdb.set_trace()
 
             # plt.imshow(np.log(voc_stft.T), aspect = 'auto', origin = 'lower')
             # plt.show()
@@ -161,11 +162,12 @@ def data_gen(mode = 'Train', sec_mode = 0):
 
 
 
-            # back_index = np.random.randint(0,len(back_list))
+            back_index = np.random.randint(0,len(back_list))
 
-            # back_to_open = back_list[back_index]
+            back_to_open = back_list[back_index]
 
-            # back_file = h5py.File(config.backing_dir+back_to_open, "r")
+            back_file = h5py.File(config.backing_dir+back_to_open, "r")
+
             if voc_to_open.startswith('nus'):
                 if not  "phonemes" in voc_file:
                     print(voc_file)
@@ -187,14 +189,14 @@ def data_gen(mode = 'Train', sec_mode = 0):
 
             # print("Backing file: %s" % back_file)
 
-            # back_stft = back_file['back_stft']
+            back_stft = back_file['back_stft']
 
 
             for j in range(config.samples_per_file):
                     voc_idx = np.random.randint(0,len(feats)-config.max_phr_len)
-                    # bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
-                    # mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]
-                    # *np.clip(np.random.rand(1),0.5,0.9) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9)+ np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
+                    bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
+                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.5,0.9) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
+                    mix_in.append(mix_stft)
                     targets_f0_1.append(f0_nor[voc_idx:voc_idx+config.max_phr_len])
                     if Flag:
                         pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
@@ -204,6 +206,10 @@ def data_gen(mode = 'Train', sec_mode = 0):
                     feats_targs.append(feats[voc_idx:voc_idx+config.max_phr_len])
 
         targets_f0_1 = np.array(targets_f0_1)
+
+        mix_in = np.array(mix_in)
+
+        # import pdb;pdb.set_trace()
 
         # targets_f0_2 = np.array(targets_f0_2)
         
@@ -217,7 +223,7 @@ def data_gen(mode = 'Train', sec_mode = 0):
 
         if Flag:
 
-            yield feats_targs, targets_f0_1, np.array(pho_targs), np.array(targets_singers)
+            yield feats_targs, targets_f0_1, np.array(pho_targs), np.array(targets_singers), mix_in
         else:
             yield inputs_norm, feats_targs, targets_f0_1, targets_f0_2, None, None, Flag
 
