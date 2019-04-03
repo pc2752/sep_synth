@@ -200,7 +200,7 @@ def train(_):
 
         G_loss_GAN = tf.reduce_mean(D_fake+1e-12) + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5)))/(config.batch_size*config.max_phr_len*64)
 
-        G_loss_sep = tf.reduce_mean(D_sep_fake+1e-12) + tf.reduce_sum(tf.abs(feats_placeholder- (voc_output/2+0.5)))/(config.batch_size*config.max_phr_len*66)
+        G_loss_sep = tf.reduce_mean(D_sep_fake+1e-12) + tf.reduce_sum(tf.abs(feats_placeholder- (voc_output/2+0.5)))
                      # + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= output_placeholder, logits=voc_output)) *0.000005
         #
 
@@ -510,10 +510,12 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
     min_feat = np.array(stat_file["feats_minimus"])
     with tf.Graph().as_default():
         
-        input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,66),name='input_placeholder')
+        input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,513),name='input_placeholder')
         tf.summary.histogram('inputs', input_placeholder)
 
         output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,64),name='output_placeholder')
+
+        feats_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,66),name='feats_placeholder')
 
 
         f0_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 1),name='f0_input_placeholder')
@@ -532,28 +534,33 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
         singer_onehot_labels = tf.one_hot(indices=tf.cast(singer_labels, tf.int32), depth=12)
 
 
+
+
+        with tf.variable_scope('Sep_gen') as scope: 
+            voc_output = modules.sep_network(input_placeholder)
+            # scope.reuse_variables()
+            # voc_output_2_2 = modules.GAN_generator(voc_output_3_decoded, singer_onehot_labels, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
+
         with tf.variable_scope('phone_Model') as scope:
             # regularizer = tf.contrib.layers.l2_regularizer(scale=0.1)
-            pho_logits = modules.phone_network(input_placeholder)
+            pho_logits = modules.phone_network(voc_output)
             pho_classes = tf.argmax(pho_logits, axis=-1)
             pho_probs = tf.nn.softmax(pho_logits)
 
-        # with tf.variable_scope('Final_Model') as scope:
-        #     voc_output = modules.final_net(singer_onehot_labels, f0_input_placeholder, phone_onehot_labels)
-        #     voc_output_decoded = tf.nn.sigmoid(voc_output)
-        #     scope.reuse_variables()
-        #     voc_output_3 = modules.final_net(singer_onehot_labels, f0_input_placeholder, pho_probs)
-        #     voc_output_3_decoded = tf.nn.sigmoid(voc_output_3)
+        with tf.variable_scope('Sep_dis') as scope: 
+            D_sep_real = modules.sep_discriminator((feats_placeholder-0.5)*2, input_placeholder)
+            scope.reuse_variables()
+            D_sep_fake = modules.sep_discriminator(voc_output, input_placeholder)
             
 
         with tf.variable_scope('singer_Model') as scope:
-            singer_embedding, singer_logits = modules.singer_network(input_placeholder)
+            singer_embedding, singer_logits = modules.singer_network(voc_output)
             singer_classes = tf.argmax(singer_logits, axis=-1)
             singer_probs = tf.nn.softmax(singer_logits)
 
 
         with tf.variable_scope('Generator') as scope: 
-            voc_output_2 = modules.GAN_generator(singer_embedding, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
+            voc_output_2 = modules.GAN_generator(singer_embedding, pho_probs, f0_input_placeholder, rand_input_placeholder)
             # scope.reuse_variables()
             # voc_output_2_2 = modules.GAN_generator(voc_output_3_decoded, singer_onehot_labels, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
 
@@ -562,6 +569,8 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
             D_real = modules.GAN_discriminator((output_placeholder-0.5)*2, singer_embedding, phone_onehot_labels, f0_input_placeholder)
             scope.reuse_variables()
             D_fake = modules.GAN_discriminator(voc_output_2,singer_embedding, phone_onehot_labels, f0_input_placeholder)
+
+
 
 
         saver = tf.train.Saver(max_to_keep= config.max_models_to_keep)
@@ -591,6 +600,8 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
         feats = np.array(voc_file['feats'])
+
+        stft = np.array(voc_file['voc_stft'])
         # feats = utils.input_to_feats('./54228_chorus.wav_ori_vocals.wav', mode = 1)
 
 
@@ -624,22 +635,24 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
         in_batches_feat, kaka = utils.generate_overlapadd(feats)
 
+        in_batches_stft, kaka = utils.generate_overlapadd(stft)
+
         # import pdb;pdb.set_trace()
 
 
 
 
-        out_batches_feats = []
+        # out_batches_feats = []
 
 
-        out_batches_feats_1 = []
+        # out_batches_feats_1 = []
 
         out_batches_feats_gan = []
 
 
 
 
-        for in_batch_f0,  in_batch_pho_target, in_batch_feat  in zip(in_batches_f0, in_batches_pho, in_batches_feat):
+        for in_batch_f0,  in_batch_pho_target, in_batch_stft  in zip(in_batches_f0, in_batches_pho, in_batches_stft):
 
             in_batch_f0= in_batch_f0.reshape([config.batch_size, config.max_phr_len, 1])
 
@@ -647,8 +660,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
             # in_batch_pho_target = sess.run(pho_probs, feed_dict = {input_placeholder: in_batch_feat})
 
-            output_feats_gan = sess.run(voc_output_2, feed_dict = {input_placeholder: in_batch_feat,
-              f0_input_placeholder: in_batch_f0,phoneme_labels :in_batch_pho_target, singer_labels: np.ones(30)*singer_index, rand_input_placeholder: np.random.normal(-1.0,1.0,size=[30,config.max_phr_len,4])})
+            output_feats_gan = sess.run(voc_output, feed_dict = {input_placeholder: in_batch_stft,f0_input_placeholder:in_batch_f0, rand_input_placeholder: np.random.normal(-1.0,1.0,size=[30,config.max_phr_len,4])})
 
 
 
@@ -673,7 +685,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
 
-        out_batches_feats_gan = out_batches_feats_gan * (max_feat[:-2]-min_feat[:-2])+min_feat[:-2]
+        out_batches_feats_gan = out_batches_feats_gan[:,:-2]* (max_feat[:-2]-min_feat[:-2])+min_feat[:-2]
 
 
 
