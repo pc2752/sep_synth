@@ -200,7 +200,8 @@ def train(_):
 
         G_loss_GAN = tf.reduce_mean(D_fake+1e-12) + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5)))/(config.batch_size*config.max_phr_len*64)
 
-        G_loss_sep = tf.reduce_mean(D_sep_fake+1e-12) + tf.reduce_sum(tf.abs(feats_placeholder- (voc_output/2+0.5)))/(config.batch_size*config.max_phr_len*66)
+        G_loss_sep = tf.reduce_sum(tf.abs(feats_placeholder- (voc_output/2+0.5)))
+        # tf.reduce_mean(D_sep_fake+1e-12) 
                      # + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= output_placeholder, logits=voc_output)) *0.000005
         #
 
