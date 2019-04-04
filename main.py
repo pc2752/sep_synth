@@ -200,7 +200,7 @@ def train(_):
 
         G_loss_GAN = tf.reduce_mean(D_fake+1e-12) + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5)))/(config.batch_size*config.max_phr_len*64)
 
-        G_loss_sep = tf.reduce_sum(tf.abs(feats_placeholder- (voc_output/2+0.5)))
+        G_loss_sep = tf.reduce_mean(D_sep_fake+1e-12) + tf.reduce_sum(tf.abs(feats_placeholder- (voc_output/2+0.5)))/(config.batch_size*config.max_phr_len*66)
         # tf.reduce_mean(D_sep_fake+1e-12) 
                      # + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= output_placeholder, logits=voc_output)) *0.000005
         #
@@ -286,7 +286,7 @@ def train(_):
 
         dis_sep_train_function = dis_sep_optimizer.minimize(D_sep_loss, global_step = global_step_sep_dis, var_list=d_sep_params)
 
-        gen_sep_rain_function = gen_sep_optimizer.minimize(G_loss_sep, global_step = global_step_sep_gen, var_list=g_sep_params)
+        gen_sep_train_function = gen_sep_optimizer.minimize(G_loss_sep, global_step = global_step_sep_gen, var_list=g_sep_params)
 
         clip_discriminator_var_op = [var.assign(tf.clip_by_value(var, -0.01, 0.01)) for var in d_params]
 
@@ -380,7 +380,7 @@ def train(_):
                     phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats}
 
 
-                    _, step_gen_loss, step_gen_sep_loss = sess.run([gen_train_function,G_loss_GAN, G_loss_sep], feed_dict = feed_dict)
+                    _,_, step_gen_loss, step_gen_sep_loss = sess.run([gen_train_function,gen_sep_train_function, G_loss_GAN, G_loss_sep], feed_dict = feed_dict)
                     # if step_gen_acc>0.3:
                     step_dis_loss, step_dis_sep_loss= sess.run([D_loss, D_sep_loss], feed_dict = feed_dict)
                     _,_, step_pho_loss, step_pho_acc, step_sing_loss, step_sing_acc = sess.run([pho_train_function, singer_train_function, pho_loss, pho_acc, singer_loss, singer_acc], feed_dict= feed_dict)
