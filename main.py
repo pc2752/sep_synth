@@ -462,7 +462,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
     min_feat = np.array(stat_file["feats_minimus"])
     with tf.Graph().as_default():
         
-        input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,66),name='input_placeholder')
+        input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,513),name='input_placeholder')
         tf.summary.histogram('inputs', input_placeholder)
 
         output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,64),name='output_placeholder')
@@ -564,6 +564,8 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
         feats = (feats-min_feat)/(max_feat-min_feat)
 
+        stft = np.array(voc_file['voc_stft'])
+
 
 
         pho_target = np.array(voc_file["phonemes"])
@@ -575,6 +577,8 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
         in_batches_pho, nchunks_in_pho = utils.generate_overlapadd(pho_target.reshape(-1,1))
 
         in_batches_feat, kaka = utils.generate_overlapadd(feats)
+
+        in_batches_stft, kaka = utils.generate_overlapadd(stft)
 
         # import pdb;pdb.set_trace()
 
@@ -591,7 +595,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
 
-        for in_batch_f0,  in_batch_pho_target, in_batch_feat  in zip(in_batches_f0, in_batches_pho, in_batches_feat):
+        for in_batch_f0,  in_batch_pho_target, in_batch_stft  in zip(in_batches_f0, in_batches_pho, in_batches_stft):
 
             in_batch_f0= in_batch_f0.reshape([config.batch_size, config.max_phr_len, 1])
 
@@ -599,7 +603,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
             # in_batch_pho_target = sess.run(pho_probs, feed_dict = {input_placeholder: in_batch_feat})
 
-            output_feats_gan = sess.run(voc_output_2, feed_dict = {input_placeholder: in_batch_feat,
+            output_feats_gan = sess.run(voc_output_2, feed_dict = {input_placeholder: in_batch_stft,
               f0_input_placeholder: in_batch_f0,phoneme_labels :in_batch_pho_target, singer_labels: np.ones(30)*singer_index, rand_input_placeholder: np.random.normal(-1.0,1.0,size=[30,config.max_phr_len,4])})
 
 
