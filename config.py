@@ -150,7 +150,7 @@ rec_field = 2**wavenet_layers
 wavenet_filters = 64
 
 print_every = 1
-save_every = 500
+save_every = 50
 
 use_gan = False
 gan_lr = 0.001
