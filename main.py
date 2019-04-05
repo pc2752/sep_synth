@@ -372,6 +372,7 @@ def train(_):
 
             val_epoch_sep_gen_loss = 0
             val_epoch_sep_dis_loss = 0
+            flag_count = 0
 
 
             with tf.variable_scope('Training'):
@@ -381,11 +382,13 @@ def train(_):
                     # pho_one_hot = one_hotize(phos, max_index=42)
 
                     f0 = f0.reshape([config.batch_size, config.max_phr_len, 1])
-                    flag_count = 0
+                    
 
 
                     if Flag: 
+                        flag_count+=1
                         for critic_itr in range(n_critic):
+
                             feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
                                     phoneme_labels:phos, singer_labels: singer_ids, feats_placeholder: feats}
                             sess.run([dis_sep_train_function, dis_train_function], feed_dict = feed_dict)
