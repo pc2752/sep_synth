@@ -404,6 +404,7 @@ def train(_):
                         _,_, step_pho_loss, step_pho_acc, step_sing_loss, step_sing_acc = sess.run([pho_train_function, singer_train_function, pho_loss, pho_acc, singer_loss, singer_acc], feed_dict= feed_dict)
 
                     else:
+                        # import pdb;pdb.set_trace()
                         for critic_itr in range(n_critic):
                             feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, 
                             rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),feats_placeholder: feats}
@@ -662,13 +663,13 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
 
-        pho_target = np.array(voc_file["phonemes"])
+        # pho_target = np.array(voc_file["phonemes"])
 
 
 
         in_batches_f0, nchunks_in = utils.generate_overlapadd(f0_nor.reshape(-1,1))
 
-        in_batches_pho, nchunks_in_pho = utils.generate_overlapadd(pho_target.reshape(-1,1))
+        # in_batches_pho, nchunks_in_pho = utils.generate_overlapadd(pho_target.reshape(-1,1))
 
         in_batches_feat, kaka = utils.generate_overlapadd(feats)
 
@@ -689,11 +690,11 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
 
-        for in_batch_f0,  in_batch_pho_target, in_batch_stft  in zip(in_batches_f0, in_batches_pho, in_batches_stft):
+        for in_batch_f0, in_batch_stft  in zip(in_batches_f0, in_batches_stft):
 
             in_batch_f0= in_batch_f0.reshape([config.batch_size, config.max_phr_len, 1])
 
-            in_batch_pho_target = in_batch_pho_target.reshape([config.batch_size, config.max_phr_len])
+            # in_batch_pho_target = in_batch_pho_target.reshape([config.batch_size, config.max_phr_len])
 
             # in_batch_pho_target = sess.run(pho_probs, feed_dict = {input_placeholder: in_batch_feat})
 
@@ -839,8 +840,9 @@ if __name__ == '__main__':
             if len(sys.argv) < 4:
                 singer_name = file_name.split('_')[1]
                 print("Synthesizing with same singer as input file, {}, to change, please give a different singer after the song file".format(singer_name))
-                singer_index = config.singers.index(singer_name)
-                synth_file(file_name, singer_index, show_plots = FLAG_PLOT)
+                # singer_index = config.singers.index(singer_name)
+
+                synth_file(file_name, show_plots = FLAG_PLOT)
 
             else:
                 singer_name = sys.argv[3]
