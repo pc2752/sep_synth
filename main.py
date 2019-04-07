@@ -543,7 +543,7 @@ def train(_):
 def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=config.wav_dir, show_plots=True, save_file = "GBO"):
 
 
-    stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
+    stat_file = h5py.File(config.stat_dir+'stats_2.hdf5', mode='r')
     max_feat = np.array(stat_file["feats_maximus"])
     min_feat = np.array(stat_file["feats_minimus"])
     with tf.Graph().as_default():
@@ -698,7 +698,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
             # in_batch_pho_target = sess.run(pho_probs, feed_dict = {input_placeholder: in_batch_feat})
 
-            output_feats_gan = sess.run(voc_output, feed_dict = {input_placeholder: in_batch_stft,f0_input_placeholder:in_batch_f0, rand_input_placeholder: np.random.normal(-1.0,1.0,size=[30,config.max_phr_len,4])})
+            output_feats_gan = sess.run(voc_output_2, feed_dict = {input_placeholder: in_batch_stft,f0_input_placeholder:in_batch_f0, rand_input_placeholder: np.random.normal(-1.0,1.0,size=[30,config.max_phr_len,4])})
 
 
 
@@ -723,7 +723,8 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
 
-        out_batches_feats_gan = out_batches_feats_gan[:,:-2]* (max_feat[:-2]-min_feat[:-2])+min_feat[:-2]
+        out_batches_feats_gan = out_batches_feats_gan* (max_feat[:-2]-min_feat[:-2])+min_feat[:-2]
+        # out_batches_feats_gan = out_batches_feats_gan[:,:-2]* (max_feat[:-2]-min_feat[:-2])+min_feat[:-2]
 
 
 
