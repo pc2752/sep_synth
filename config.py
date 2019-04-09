@@ -14,7 +14,7 @@ wav_dir_vctk_lab = '../datasets/VCTK/VCTK_files/VCTK-Corpus/forPritish/'
 voice_dir = '../ss_synthesis/voice/'
 backing_dir = '../ss_synthesis/backing/'
 
-log_dir = './log_stft_2_feat_phase2/'
+log_dir = './log_stft_2_feat_phase2_oldsep/'
 
 # log_dir = '../ss_synthesis/log_cross_GANandL1/'
 
@@ -40,7 +40,7 @@ norm_mode_in = "max_min"
 voc_ext = '_voc_stft.npy'
 feats_ext = '_synth_feats.npy'
 
-f0_weight = 10
+f0_weight = 20
 max_models_to_keep = 100
 f0_threshold = 1
 
