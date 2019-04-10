@@ -341,16 +341,16 @@ def train(_):
                         for critic_itr in range(n_critic):
                             feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
                                     phoneme_labels:phos, singer_labels: singer_ids}
-                            sess.run(dis_train_function, feed_dict = feed_dict)
+                            sess.run(dis_train_function_2, feed_dict = feed_dict)
                             sess.run(clip_discriminator_var_op, feed_dict = feed_dict)
 
                         feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
                         phoneme_labels:phos, singer_labels: singer_ids}
 
 
-                        _, step_gen_loss, step_gen_acc = sess.run([gen_train_function,G_loss_GAN, G_accuracy], feed_dict = feed_dict)
+                        _, step_gen_loss, step_gen_acc = sess.run([gen_train_function_2,G_loss_GAN_2, G_accuracy], feed_dict = feed_dict)
                         # if step_gen_acc>0.3:
-                        step_dis_loss, step_dis_acc= sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
+                        step_dis_loss, step_dis_acc= sess.run([D_loss_2, D_accuracy], feed_dict = feed_dict)
                         _,_, step_pho_loss, step_pho_acc, step_sing_loss, step_sing_acc = sess.run([pho_train_function, singer_train_function, pho_loss, pho_acc, singer_loss, singer_acc], feed_dict= feed_dict)
                     
                     else: 
