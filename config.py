@@ -14,7 +14,7 @@ wav_dir_vctk_lab = '../datasets/VCTK/VCTK_files/VCTK-Corpus/forPritish/'
 voice_dir = '../ss_synthesis/voice/'
 backing_dir = '../ss_synthesis/backing/'
 
-log_dir = './log_stft/'
+log_dir = './log_reset/'
 
 # log_dir = '../ss_synthesis/log_cross_GANandL1/'
 
@@ -112,14 +112,14 @@ noise_threshold = 0.4 #0.7 for the unnormalized features
 pred_mode = 'all'
 
 # Hyperparameters
-num_epochs = 2500
+num_epochs = 4000
 num_epochs_m1 = 2000
 batches_per_epoch_train = 100
 batches_per_epoch_val = 10
 batches_per_epoch_val_m1 = 300
 batch_size = 30
-samples_per_file = 5
-max_phr_len = 128
+samples_per_file = 30
+max_phr_len = 64
 input_features = 513
 
 first_embed = 256

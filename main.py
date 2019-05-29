@@ -48,7 +48,7 @@ def train(_):
 
         f0_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 1),name='f0_input_placeholder')
 
-        rand_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 4),name='rand_input_placeholder')
+        # rand_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,1,1, 4),name='rand_input_placeholder')
 
 
         # pho_input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 42),name='pho_input_placeholder')
@@ -64,7 +64,7 @@ def train(_):
 
         with tf.variable_scope('phone_Model') as scope:
             # regularizer = tf.contrib.layers.l2_regularizer(scale=0.1)
-            pho_logits = modules.phone_network(input_placeholder)
+            pho_logits, phone_embeding = modules.phone_network(input_placeholder)
             pho_classes = tf.argmax(pho_logits, axis=-1)
             pho_probs = tf.nn.softmax(pho_logits)
 
@@ -83,15 +83,15 @@ def train(_):
 
 
         with tf.variable_scope('Generator') as scope: 
-            voc_output_2 = modules.GAN_generator(singer_embedding, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
+            voc_output_2 = modules.GAN_generator(singer_embedding, phone_embeding, f0_input_placeholder)
             # scope.reuse_variables()
             # voc_output_2_2 = modules.GAN_generator(voc_output_3_decoded, singer_onehot_labels, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
 
 
         with tf.variable_scope('Discriminator') as scope: 
-            D_real = modules.GAN_discriminator((output_placeholder-0.5)*2, singer_embedding, phone_onehot_labels, f0_input_placeholder)
+            D_real = modules.GAN_discriminator((output_placeholder-0.5)*2)
             scope.reuse_variables()
-            D_fake = modules.GAN_discriminator(voc_output_2,singer_embedding, phone_onehot_labels, f0_input_placeholder)
+            D_fake = modules.GAN_discriminator(voc_output_2)
 
 
         # import pdb;pdb.set_trace()
@@ -246,7 +246,7 @@ def train(_):
         # Training functions
         pho_train_function = pho_optimizer.minimize(pho_loss, global_step = global_step, var_list = phone_params)
 
-        singer_train_function = pho_optimizer.minimize(singer_loss, global_step = global_step_singer)
+        singer_train_function = singer_optimizer.minimize(singer_loss, global_step = global_step_singer)
 
         # with tf.control_dependencies(update_ops):
         # re_train_function = re_optimizer.minimize(final_loss, global_step = global_step_re, var_list=final_params)
@@ -282,12 +282,15 @@ def train(_):
         
         for epoch in xrange(start_epoch, config.num_epochs):
 
-            if epoch<25 or epoch%100 == 0:
-                n_critic = 15
+            if epoch<2050 or epoch < 50 or epoch%100 == 0:
+                n_critic = 25
             else:
                 n_critic = 5
+            if epoch<2000:
 
-            data_generator = data_gen(sec_mode = 0)
+                data_generator = data_gen(sec_mode = 0)
+            else:
+                data_generator = data_gen(sec_mode = 1)
             start_time = time.time()
 
             val_generator = data_gen(mode='val')
@@ -315,120 +318,127 @@ def train(_):
 
             with tf.variable_scope('Training'):
 
-                for feats, f0, phos, singer_ids, mix_in in data_generator:
+                for feats, f0, phos, singer_ids, mix_in, Flag in data_generator:
 
-                    pho_one_hot = one_hotize(phos, max_index=42)
+
+
+                    # pho_one_hot = one_hotize(phos, max_index=42)
 
                     f0 = f0.reshape([config.batch_size, config.max_phr_len, 1])
 
-                    # sing_id_shu = np.copy(singer_ids)
+                    if Flag:
 
-                    # phos_shu = np.copy(phos)
 
-                    # np.random.shuffle(sing_id_shu)
+                        feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0,phoneme_labels:phos, singer_labels: singer_ids}
 
-                    # np.random.shuffle(phos_shu)
+                        _,_, step_pho_loss, step_pho_acc, step_sing_loss, step_sing_acc = sess.run([pho_train_function, singer_train_function, pho_loss, pho_acc, singer_loss, singer_acc], feed_dict= feed_dict)
+                        epoch_pho_acc+=step_pho_acc[0]
+                        # epoch_gen_acc+=step_gen_acc
+                        epoch_singer_acc+=step_sing_acc[0]
+                        epoch_pho_loss+=step_pho_loss
+
+                    # else:
 
                     for critic_itr in range(n_critic):
-                        feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
-                                phoneme_labels:phos, singer_labels: singer_ids}
+                        feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0}
                         sess.run(dis_train_function, feed_dict = feed_dict)
                         sess.run(clip_discriminator_var_op, feed_dict = feed_dict)
 
-                    feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0, rand_input_placeholder: np.random.uniform(-1.0, 1.0, size=[30,config.max_phr_len,4]),
-                    phoneme_labels:phos, singer_labels: singer_ids}
 
 
                     _, step_gen_loss, step_gen_acc = sess.run([gen_train_function,G_loss_GAN, G_accuracy], feed_dict = feed_dict)
                     # if step_gen_acc>0.3:
                     step_dis_loss, step_dis_acc= sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
-                    _,_, step_pho_loss, step_pho_acc, step_sing_loss, step_sing_acc = sess.run([pho_train_function, singer_train_function, pho_loss, pho_acc, singer_loss, singer_acc], feed_dict= feed_dict)
-                    # else: 
-                        # step_dis_loss, step_dis_acc = sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
+                        # else: 
+                            # step_dis_loss, step_dis_acc = sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
 
-                    # import pdb;pdb.set_trace()
+                        # import pdb;pdb.set_trace()
 
-                    epoch_pho_loss+=step_pho_loss
-                    # epoch_re_loss+=step_re_loss
+                        
+                        # epoch_re_loss+=step_re_loss
                     epoch_gen_loss+=step_gen_loss
                     epoch_dis_loss+=step_dis_loss
 
-                    epoch_pho_acc+=step_pho_acc[0]
-                    epoch_gen_acc+=step_gen_acc
-                    epoch_singer_acc+=step_sing_acc[0]
+
 
 
 
                     utils.progress(batch_num,config.batches_per_epoch_train, suffix = 'training done')
                     batch_num+=1
 
-                epoch_pho_loss = epoch_pho_loss/config.batches_per_epoch_train
-                # epoch_re_loss = epoch_re_loss/config.batches_per_epoch_train
+                if Flag:
+
+	                epoch_pho_acc = epoch_pho_acc/config.batches_per_epoch_train
+	                # epoch_gen_acc = epoch_gen_acc/config.batches_per_epoch_train
+	                epoch_singer_acc = epoch_singer_acc/config.batches_per_epoch_train
+	                epoch_pho_loss = epoch_pho_loss/config.batches_per_epoch_train
+
+
+                    # epoch_re_loss = epoch_re_loss/config.batches_per_epoch_train
                 epoch_gen_loss = epoch_gen_loss/config.batches_per_epoch_train
                 epoch_dis_loss = epoch_dis_loss/config.batches_per_epoch_train
 
 
-                epoch_pho_acc = epoch_pho_acc/config.batches_per_epoch_train
-                epoch_gen_acc = epoch_gen_acc/config.batches_per_epoch_train
-                epoch_singer_acc = epoch_singer_acc/config.batches_per_epoch_train
-                summary_str = sess.run(summary, feed_dict=feed_dict)
-            # import pdb;pdb.set_trace()
-                train_summary_writer.add_summary(summary_str, epoch)
-            # # summary_writer.add_summary(summary_str_val, epoch)
-                train_summary_writer.flush()
 
 
-            with tf.variable_scope('Validation'):
-
-                for feats, f0, phos, singer_ids, mix_in in val_generator:
-
-                    pho_one_hot = one_hotize(phos, max_index=42)
-
-                    f0 = f0.reshape([config.batch_size, config.max_phr_len, 1])
-
-                    sing_id_shu = np.copy(singer_ids)
-
-                    phos_shu = np.copy(phos)
-
-                    np.random.shuffle(sing_id_shu)
-
-                    np.random.shuffle(phos_shu)
-
-                    feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0,rand_input_placeholder: np.random.uniform(-1.0,1.0,size=[30,config.max_phr_len,4]),
-                    phoneme_labels:phos, singer_labels: singer_ids}
-
-                    step_pho_loss, step_pho_acc = sess.run([pho_loss, pho_acc], feed_dict= feed_dict)
-                    step_gen_loss, step_gen_acc = sess.run([G_loss_GAN, G_accuracy], feed_dict = feed_dict)
-                    step_dis_loss, step_sing_acc = sess.run([D_loss, singer_acc_val], feed_dict = feed_dict)
-
-                    val_epoch_pho_loss+=step_pho_loss
-                    val_epoch_gen_loss+=step_gen_loss
-                    val_epoch_dis_loss+=step_dis_loss
-
-                    val_epoch_pho_acc+=step_pho_acc[0]
-                    val_epoch_gen_acc+=step_gen_acc
-                    val_epoch_singer_acc+=step_sing_acc[0]
+            #     summary_str = sess.run(summary, feed_dict=feed_dict)
+            # # import pdb;pdb.set_trace()
+            #     train_summary_writer.add_summary(summary_str, epoch)
+            # # # summary_writer.add_summary(summary_str_val, epoch)
+            #     train_summary_writer.flush()
 
 
+            # with tf.variable_scope('Validation'):
+
+            #     for feats, f0, phos, singer_ids, mix_in in val_generator:
+
+            #         pho_one_hot = one_hotize(phos, max_index=42)
+
+            #         f0 = f0.reshape([config.batch_size, config.max_phr_len, 1])
+
+            #         sing_id_shu = np.copy(singer_ids)
+
+            #         phos_shu = np.copy(phos)
+
+            #         np.random.shuffle(sing_id_shu)
+
+            #         np.random.shuffle(phos_shu)
+
+            #         feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0,rand_input_placeholder: np.random.uniform(-1.0,1.0,size=[30,config.max_phr_len,4]),
+            #         phoneme_labels:phos, singer_labels: singer_ids}
+
+            #         step_pho_loss, step_pho_acc = sess.run([pho_loss, pho_acc], feed_dict= feed_dict)
+            #         step_gen_loss, step_gen_acc = sess.run([G_loss_GAN, G_accuracy], feed_dict = feed_dict)
+            #         step_dis_loss, step_sing_acc = sess.run([D_loss, singer_acc_val], feed_dict = feed_dict)
+
+            #         val_epoch_pho_loss+=step_pho_loss
+            #         val_epoch_gen_loss+=step_gen_loss
+            #         val_epoch_dis_loss+=step_dis_loss
+
+            #         val_epoch_pho_acc+=step_pho_acc[0]
+            #         val_epoch_gen_acc+=step_gen_acc
+            #         val_epoch_singer_acc+=step_sing_acc[0]
 
 
-                    utils.progress(batch_num,config.batches_per_epoch_train, suffix = 'training done')
-                    batch_num+=1
-
-                val_epoch_pho_loss = val_epoch_pho_loss/config.batches_per_epoch_val
-                val_epoch_gen_loss = val_epoch_gen_loss/config.batches_per_epoch_val
-                val_epoch_dis_loss = val_epoch_dis_loss/config.batches_per_epoch_val
-
-                val_epoch_pho_acc = val_epoch_pho_acc/config.batches_per_epoch_val
-                val_epoch_gen_acc = val_epoch_gen_acc/config.batches_per_epoch_val
-                val_epoch_singer_acc = val_epoch_singer_acc/config.batches_per_epoch_val
 
 
-                summary_str = sess.run(summary, feed_dict=feed_dict)
-            # import pdb;pdb.set_trace()
-                val_summary_writer.add_summary(summary_str, epoch)
-            # # summary_writer.add_summary(summary_str_val, epoch)
-                val_summary_writer.flush()
+                    # utils.progress(batch_num,config.batches_per_epoch_train, suffix = 'training done')
+                    # batch_num+=1
+
+                # val_epoch_pho_loss = val_epoch_pho_loss/config.batches_per_epoch_val
+                # val_epoch_gen_loss = val_epoch_gen_loss/config.batches_per_epoch_val
+                # val_epoch_dis_loss = val_epoch_dis_loss/config.batches_per_epoch_val
+
+                # val_epoch_pho_acc = val_epoch_pho_acc/config.batches_per_epoch_val
+                # val_epoch_gen_acc = val_epoch_gen_acc/config.batches_per_epoch_val
+                # val_epoch_singer_acc = val_epoch_singer_acc/config.batches_per_epoch_val
+
+
+            #     summary_str = sess.run(summary, feed_dict=feed_dict)
+            # # import pdb;pdb.set_trace()
+            #     val_summary_writer.add_summary(summary_str, epoch)
+            # # # summary_writer.add_summary(summary_str_val, epoch)
+            #     val_summary_writer.flush()
             duration = time.time() - start_time
 
             # np.save('./ikala_eval/accuracies', f0_accs)
@@ -438,15 +448,17 @@ def train(_):
                 print('        : Phone Accuracy = %.10f ' % (epoch_pho_acc))
                 # print('        : Recon Loss = %.10f ' % (epoch_re_loss))
                 print('        : Gen Loss = %.10f ' % (epoch_gen_loss))
-                print('        : Gen Accuracy = %.10f ' % (epoch_gen_acc))
+                # print('        : Gen Accuracy = %.10f ' % (epoch_gen_acc))
                 print('        : Dis Loss = %.10f ' % (epoch_dis_loss))
                 print('        : Singer Accuracy = %.10f ' % (epoch_singer_acc))
                 # print('        : Dis Accuracy Fake = %.10f ' % (epoch_dis_acc_fake))
-                print('        : Val Phone Accuracy = %.10f ' % (val_epoch_pho_acc))
-                print('        : Val Gen Loss = %.10f ' % (val_epoch_gen_loss))
-                print('        : Val Gen Accuracy = %.10f ' % (val_epoch_gen_acc))
-                print('        : Val Dis Loss = %.10f ' % (val_epoch_dis_loss))
-                print('        : Val Singer Accuracy = %.10f ' % (val_epoch_singer_acc))
+                # print('        : Val Phone Accuracy = %.10f ' % (val_epoch_pho_acc))
+                # print('        : Val Gen Loss = %.10f ' % (val_epoch_gen_loss))
+                # print('        : Val Gen Accuracy = %.10f ' % (val_epoch_gen_acc))
+                # print('        : Val Dis Loss = %.10f ' % (val_epoch_dis_loss))
+                # print('        : Val Singer Accuracy = %.10f ' % (val_epoch_singer_acc))
+
+                # import pdb;pdb.set_trace()
 
             if (epoch + 1) % config.save_every == 0 or (epoch + 1) == config.num_epochs:
                 # utils.list_to_file(val_f0_accs,'./ikala_eval/accuracies_'+str(epoch+1)+'.txt')
@@ -470,7 +482,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
         f0_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 1),name='f0_input_placeholder')
 
-        rand_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 4),name='rand_input_placeholder')
+        # rand_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,1,1, 4),name='rand_input_placeholder')
 
 
         # pho_input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 42),name='pho_input_placeholder')
@@ -486,7 +498,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
         with tf.variable_scope('phone_Model') as scope:
             # regularizer = tf.contrib.layers.l2_regularizer(scale=0.1)
-            pho_logits = modules.phone_network(input_placeholder)
+            pho_logits, phone_embeding = modules.phone_network(input_placeholder)
             pho_classes = tf.argmax(pho_logits, axis=-1)
             pho_probs = tf.nn.softmax(pho_logits)
 
@@ -505,15 +517,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
         with tf.variable_scope('Generator') as scope: 
-            voc_output_2 = modules.GAN_generator(singer_embedding, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
-            # scope.reuse_variables()
-            # voc_output_2_2 = modules.GAN_generator(voc_output_3_decoded, singer_onehot_labels, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
-
-
-        with tf.variable_scope('Discriminator') as scope: 
-            D_real = modules.GAN_discriminator((output_placeholder-0.5)*2, singer_embedding, phone_onehot_labels, f0_input_placeholder)
-            scope.reuse_variables()
-            D_fake = modules.GAN_discriminator(voc_output_2,singer_embedding, phone_onehot_labels, f0_input_placeholder)
+            voc_output_2 = modules.GAN_generator(singer_embedding, phone_embeding, f0_input_placeholder)
 
 
         saver = tf.train.Saver(max_to_keep= config.max_models_to_keep)
@@ -568,13 +572,13 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
 
-        pho_target = np.array(voc_file["phonemes"])
+       # pho_target = np.array(voc_file["phonemes"])
 
 
 
         in_batches_f0, nchunks_in = utils.generate_overlapadd(f0_nor.reshape(-1,1))
 
-        in_batches_pho, nchunks_in_pho = utils.generate_overlapadd(pho_target.reshape(-1,1))
+       # in_batches_pho, nchunks_in_pho = utils.generate_overlapadd(pho_target.reshape(-1,1))
 
         in_batches_feat, kaka = utils.generate_overlapadd(feats)
 
@@ -595,16 +599,16 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
 
-        for in_batch_f0,  in_batch_pho_target, in_batch_stft  in zip(in_batches_f0, in_batches_pho, in_batches_stft):
+        for in_batch_f0, in_batch_stft  in zip(in_batches_f0, in_batches_stft):
 
             in_batch_f0= in_batch_f0.reshape([config.batch_size, config.max_phr_len, 1])
 
-            in_batch_pho_target = in_batch_pho_target.reshape([config.batch_size, config.max_phr_len])
+           # in_batch_pho_target = in_batch_pho_target.reshape([config.batch_size, config.max_phr_len])
 
             # in_batch_pho_target = sess.run(pho_probs, feed_dict = {input_placeholder: in_batch_feat})
 
             output_feats_gan = sess.run(voc_output_2, feed_dict = {input_placeholder: in_batch_stft,
-              f0_input_placeholder: in_batch_f0,phoneme_labels :in_batch_pho_target, singer_labels: np.ones(30)*singer_index, rand_input_placeholder: np.random.normal(-1.0,1.0,size=[30,config.max_phr_len,4])})
+              f0_input_placeholder: in_batch_f0, singer_labels: np.ones(30)*singer_index})
 
 
 
@@ -744,10 +748,10 @@ if __name__ == '__main__':
             # import pdb;pdb.set_trace()
 
             if len(sys.argv) < 4:
-                singer_name = file_name.split('_')[1]
-                print("Synthesizing with same singer as input file, {}, to change, please give a different singer after the song file".format(singer_name))
-                singer_index = config.singers.index(singer_name)
-                synth_file(file_name, singer_index, show_plots = FLAG_PLOT)
+               # singer_name = file_name.split('_')[1]
+               # print("Synthesizing with same singer as input file, {}, to change, please give a different singer after the song file".format(singer_name))
+               # singer_index = config.singers.index(singer_name)
+                synth_file(file_name, show_plots = FLAG_PLOT)
 
             else:
                 singer_name = sys.argv[3]

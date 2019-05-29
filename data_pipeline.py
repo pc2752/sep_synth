@@ -34,10 +34,9 @@ def data_gen(mode = 'Train', sec_mode = 0):
     # voc_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus')  and not x.startswith('nus_KENN') and not x == 'nus_MCUR_sing_04.hdf5' and not x == 'nus_MCUR_read_04.hdf5']
 
     voc_list = [x for x in os.listdir(config.voice_dir) if
-                x.endswith('.hdf5') and x.startswith('nus') and not x == 'nus_MCUR_sing_04.hdf5' and not x == 'nus_ADIZ_read_01.hdf5'
-                and not x == 'nus_JLEE_sing_05.hdf5' and not x == 'nus_JTAN_read_07.hdf5' and not x.startswith('nus_KENN_read')]
-                # and not x == 'nus_MPOL_read_11.hdf5' and not x == 'nus_MPUR_sing_16.hdf5'
-                    # 'nus_KENN') and not x == 'nus_MCUR_sing_04.hdf5' and not x == 'nus_MCUR_read_04.hdf5']
+                x.endswith('.hdf5') and x.startswith('nus') and not x.startswith('nus_KENN_read')]
+                # and not x == 'nus_MCUR_sing_04.hdf5' and not x == 'nus_ADIZ_read_01.hdf5'
+                # and not x == 'nus_JLEE_sing_05.hdf5' and not x == 'nus_JTAN_read_07.hdf5'
 
     # voc_list = [x for x in voc_list if x.split('_')[2] == 'sing']
 
@@ -84,17 +83,15 @@ def data_gen(mode = 'Train', sec_mode = 0):
         num_batches = config.batches_per_epoch_train
         if sec_mode == 0:
             file_list = voc_list
+        if sec_mode == 1:
+            file_list = mix_list
 
     else: 
         num_batches = config.batches_per_epoch_val
         file_list = val_list
 
     for k in range(num_batches):
-        if sec_mode == 1:
-            if np.random.rand(1)<config.aug_prob:
-                file_list = voc_list
-            else:
-                file_list = voc_list
+
         
 
         feats_targs = []
@@ -195,7 +192,7 @@ def data_gen(mode = 'Train', sec_mode = 0):
             for j in range(config.samples_per_file):
                     voc_idx = np.random.randint(0,len(feats)-config.max_phr_len)
                     bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
-                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.5,0.9) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
+                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.8,1.0) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
                     mix_in.append(mix_stft)
                     targets_f0_1.append(f0_nor[voc_idx:voc_idx+config.max_phr_len])
                     if Flag:
@@ -207,7 +204,7 @@ def data_gen(mode = 'Train', sec_mode = 0):
 
         targets_f0_1 = np.array(targets_f0_1)
 
-        mix_in = np.array(mix_in)
+        mix_in = np.array(mix_in)/2
 
         # import pdb;pdb.set_trace()
 
@@ -215,17 +212,18 @@ def data_gen(mode = 'Train', sec_mode = 0):
         
         # inputs = np.array(inputs)
 
-        feats_targs = np.array(feats_targs)
+        feats_targs = np.clip(np.array(feats_targs), 0.0, 1.0)
 
-        assert feats_targs.max()<=1.0 and feats_targs.min()>=0
+        if not (feats_targs.max()<=1.0 and feats_targs.min()>=0):
+        	import pdb;pdb.set_trace()
 
 
 
         if Flag:
 
-            yield feats_targs, targets_f0_1, np.array(pho_targs), np.array(targets_singers), mix_in
+            yield feats_targs, targets_f0_1, np.array(pho_targs), np.array(targets_singers), mix_in, Flag
         else:
-            yield inputs_norm, feats_targs, targets_f0_1, targets_f0_2, None, None, Flag
+            yield feats_targs, targets_f0_1, None, None, mix_in, Flag
 
 
 
