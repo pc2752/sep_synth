@@ -328,6 +328,8 @@ def train(_):
 
                     if Flag:
 
+                        assert singer_ids.max()<=11 and singer_ids.min()>=0
+
 
                         feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0,phoneme_labels:phos, singer_labels: singer_ids}
 
