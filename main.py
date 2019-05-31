@@ -297,11 +297,11 @@ def train(_):
         
         for epoch in xrange(start_epoch, config.num_epochs):
 
-            if epoch<2050 or epoch < 50 or epoch%100 == 0:
+            if epoch<550 or epoch < 50 or epoch%100 == 0:
                 n_critic = 25
             else:
                 n_critic = 5
-            if epoch<2000:
+            if epoch<500:
 
                 data_generator = data_gen(sec_mode = 0)
             else:
@@ -358,10 +358,10 @@ def train(_):
                         epoch_singer_acc+=step_sing_acc[0]
                         epoch_pho_loss+=step_pho_loss
 
-                    if epoch>=2000:
+                    if epoch>=500:
 
                         for critic_itr in range(n_critic):
-                            feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0}
+                            feed_dict = {input_placeholder: mix_in, output_placeholder: mix_in, f0_input_placeholder: f0}
                             sess.run(dis_train_function, feed_dict = feed_dict)
                             sess.run(clip_discriminator_var_op, feed_dict = feed_dict)
 
@@ -394,7 +394,7 @@ def train(_):
                     epoch_singer_acc = epoch_singer_acc/flag_count
                     epoch_pho_loss = epoch_pho_loss/flag_count
 
-                if epoch>=2000:
+                if epoch>=500:
                     epoch_gen_loss = epoch_gen_loss/config.batches_per_epoch_train
                     epoch_dis_loss = epoch_dis_loss/config.batches_per_epoch_train
 
@@ -501,7 +501,7 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
         input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,513),name='input_placeholder')
         tf.summary.histogram('inputs', input_placeholder)
 
-        output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,64),name='output_placeholder')
+        output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,513),name='output_placeholder')
 
 
         f0_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 1),name='f0_input_placeholder')
@@ -644,13 +644,31 @@ def synth_file(file_name = "nus_MCUR_sing_10.hdf5", singer_index = 0, file_path=
 
 
 
-        # import pdb;pdb.set_trace()
+        
 
 
 
         out_batches_feats_gan = np.array(out_batches_feats_gan)
         # import pdb;pdb.set_trace()
-        out_batches_feats_gan = utils.overlapadd(out_batches_feats_gan, nchunks_in) 
+        out_batches_feats_gan = np.clip(utils.overlapadd(out_batches_feats_gan, nchunks_in), 0.0, 1.0)
+
+        plt.figure(1)
+
+        ax1 = plt.subplot(211)
+
+        plt.imshow(np.log(stft.T),aspect='auto',origin='lower')
+
+        ax1.set_title("Ground Truth Vocoder Features", fontsize=10)
+
+        ax3 =plt.subplot(212, sharex = ax1, sharey = ax1)
+
+        ax3.set_title("GAN Vocoder Output Features", fontsize=10)
+
+        plt.imshow(np.log(out_batches_feats_gan.T),aspect='auto',origin='lower')
+
+        plt.show()
+
+        import pdb;pdb.set_trace()
 
 
         feats = feats *(max_feat-min_feat)+min_feat
