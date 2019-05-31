@@ -43,7 +43,7 @@ def train(_):
         input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,513),name='input_placeholder')
         tf.summary.histogram('inputs', input_placeholder)
 
-        output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,64),name='output_placeholder')
+        output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len,513),name='output_placeholder')
 
 
         f0_input_placeholder= tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 1),name='f0_input_placeholder')
@@ -88,9 +88,22 @@ def train(_):
             # voc_output_2_2 = modules.GAN_generator(voc_output_3_decoded, singer_onehot_labels, phone_onehot_labels, f0_input_placeholder, rand_input_placeholder)
 
 
+        with tf.variable_scope('phone_Model') as scope:
+            scope.reuse_variables()
+            pho_logits_2, phone_embeding_2 = modules.phone_network((voc_output_2/2+0.5))
+            pho_classes_2 = tf.argmax(pho_logits_2, axis=-1)
+            pho_probs_2 = tf.nn.softmax(pho_logits_2)
+
+        with tf.variable_scope('singer_Model') as scope:
+            scope.reuse_variables()
+            singer_embedding_2, singer_logits_2 = modules.singer_network((voc_output_2/2+0.5))
+            singer_classes_2 = tf.argmax(singer_logits, axis=-1)
+            singer_probs_2 = tf.nn.softmax(singer_logits)
+
         with tf.variable_scope('Discriminator') as scope: 
             D_real = modules.GAN_discriminator((output_placeholder-0.5)*2)
             scope.reuse_variables()
+            
             D_fake = modules.GAN_discriminator(voc_output_2)
 
 
@@ -118,6 +131,8 @@ def train(_):
         weighted_losses = unweighted_losses * pho_weights
 
         pho_loss = tf.reduce_mean(weighted_losses) 
+
+        # pho_loss_2 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=phone_onehot_labels, logits=pho_logits_2))
         # +tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= output_placeholder, logits=voc_output_3))*0.001 
 
         # reconstruct_loss_pho = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels = output_placeholder, logits=voc_output_decoded_gen)) *0.00001
@@ -180,7 +195,7 @@ def train(_):
         # G_loss_GAN = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels= tf.ones_like(D_real), logits=D_fake+1e-12)) + tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels= tf.ones_like(D_fake_2), logits=D_fake_2+1e-12))
         # + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5))*(1-input_placeholder[:,:,-1:])) *0.00001
 
-        G_loss_GAN = tf.reduce_mean(D_fake+1e-12) + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5)))/(config.batch_size*config.max_phr_len*64)
+        G_loss_GAN = tf.reduce_mean(D_fake+1e-12) + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5)))/(config.batch_size*config.max_phr_len*64)+tf.reduce_mean(tf.abs(phone_embeding- phone_embeding_2)) + tf.reduce_mean(tf.abs(singer_embedding - singer_embedding_2))
                      # + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= output_placeholder, logits=voc_output)) *0.000005
         #
 
@@ -335,7 +350,7 @@ def train(_):
                         assert singer_ids.max()<=11 and singer_ids.min()>=0
 
 
-                        feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0,phoneme_labels:phos, singer_labels: singer_ids}
+                        feed_dict = {input_placeholder: mix_in, output_placeholder: mix_in, f0_input_placeholder: f0,phoneme_labels:phos, singer_labels: singer_ids}
 
                         _,_, step_pho_loss, step_pho_acc, step_sing_loss, step_sing_acc = sess.run([pho_train_function, singer_train_function, pho_loss, pho_acc, singer_loss, singer_acc], feed_dict= feed_dict)
                         epoch_pho_acc+=step_pho_acc[0]
