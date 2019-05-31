@@ -192,7 +192,8 @@ def data_gen(mode = 'Train', sec_mode = 0):
             for j in range(config.samples_per_file):
                     voc_idx = np.random.randint(0,len(feats)-config.max_phr_len)
                     bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
-                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.8,1.0) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
+                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]
+                    # *np.clip(np.random.rand(1),0.8,1.0) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
                     mix_in.append(mix_stft)
                     targets_f0_1.append(f0_nor[voc_idx:voc_idx+config.max_phr_len])
                     if Flag:
@@ -204,7 +205,7 @@ def data_gen(mode = 'Train', sec_mode = 0):
 
         targets_f0_1 = np.array(targets_f0_1)
 
-        mix_in = np.array(mix_in)/2
+        mix_in = np.clip(np.array(mix_in), 0.0, 1.0)
 
         # import pdb;pdb.set_trace()
 

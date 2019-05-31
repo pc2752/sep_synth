@@ -315,6 +315,8 @@ def train(_):
             val_epoch_gen_acc = 0
             val_epoch_singer_acc = 0
 
+            flag_count = 0
+
 
             with tf.variable_scope('Training'):
 
@@ -328,6 +330,8 @@ def train(_):
 
                     if Flag:
 
+                        flag_count+=1
+
                         assert singer_ids.max()<=11 and singer_ids.min()>=0
 
 
@@ -339,27 +343,27 @@ def train(_):
                         epoch_singer_acc+=step_sing_acc[0]
                         epoch_pho_loss+=step_pho_loss
 
-                    # else:
+                    if epoch>=2000:
 
-                    for critic_itr in range(n_critic):
-                        feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0}
-                        sess.run(dis_train_function, feed_dict = feed_dict)
-                        sess.run(clip_discriminator_var_op, feed_dict = feed_dict)
+                        for critic_itr in range(n_critic):
+                            feed_dict = {input_placeholder: mix_in, output_placeholder: feats[:,:,:-2], f0_input_placeholder: f0}
+                            sess.run(dis_train_function, feed_dict = feed_dict)
+                            sess.run(clip_discriminator_var_op, feed_dict = feed_dict)
 
 
 
-                    _, step_gen_loss, step_gen_acc = sess.run([gen_train_function,G_loss_GAN, G_accuracy], feed_dict = feed_dict)
-                    # if step_gen_acc>0.3:
-                    step_dis_loss, step_dis_acc= sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
-                        # else: 
-                            # step_dis_loss, step_dis_acc = sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
+                        _, step_gen_loss, step_gen_acc = sess.run([gen_train_function,G_loss_GAN, G_accuracy], feed_dict = feed_dict)
+                        # if step_gen_acc>0.3:
+                        step_dis_loss, step_dis_acc= sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
+                            # else: 
+                                # step_dis_loss, step_dis_acc = sess.run([D_loss, D_accuracy], feed_dict = feed_dict)
 
-                        # import pdb;pdb.set_trace()
+                            # import pdb;pdb.set_trace()
 
-                        
-                        # epoch_re_loss+=step_re_loss
-                    epoch_gen_loss+=step_gen_loss
-                    epoch_dis_loss+=step_dis_loss
+                            
+                            # epoch_re_loss+=step_re_loss
+                        epoch_gen_loss+=step_gen_loss
+                        epoch_dis_loss+=step_dis_loss
 
 
 
@@ -370,15 +374,18 @@ def train(_):
 
                 if Flag:
 
-	                epoch_pho_acc = epoch_pho_acc/config.batches_per_epoch_train
-	                # epoch_gen_acc = epoch_gen_acc/config.batches_per_epoch_train
-	                epoch_singer_acc = epoch_singer_acc/config.batches_per_epoch_train
-	                epoch_pho_loss = epoch_pho_loss/config.batches_per_epoch_train
+                    epoch_pho_acc = epoch_pho_acc/flag_count
+                    # epoch_gen_acc = epoch_gen_acc/config.batches_per_epoch_train
+                    epoch_singer_acc = epoch_singer_acc/flag_count
+                    epoch_pho_loss = epoch_pho_loss/flag_count
+
+                if epoch>=2000:
+                    epoch_gen_loss = epoch_gen_loss/config.batches_per_epoch_train
+                    epoch_dis_loss = epoch_dis_loss/config.batches_per_epoch_train
 
 
-                    # epoch_re_loss = epoch_re_loss/config.batches_per_epoch_train
-                epoch_gen_loss = epoch_gen_loss/config.batches_per_epoch_train
-                epoch_dis_loss = epoch_dis_loss/config.batches_per_epoch_train
+# epoch_re_loss = epoch_re_loss/config.batches_per_epoch_train
+
 
 
 
