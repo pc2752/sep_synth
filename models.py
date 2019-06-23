@@ -1,7 +1,7 @@
 import tensorflow as tf
-# from modules_tf import DeepSalience, nr_wavenet
+import modules_tf as modules
 import config
-# from data_pipeline import data_gen, sep_gen
+from data_pipeline import data_gen_pho, data_gen_full
 import time, os
 import utils
 import h5py
@@ -37,36 +37,8 @@ class Model(object):
         rec = scores['Recall']
         return pre, acc, rec
 
-    def get_placeholders(self):
-        """
-        Returns the placeholders for the model. 
-        Depending on the mode, can return placeholders for either just the generator or both the generator and discriminator.
-        """
 
-        self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 66),
-                                           name='input_placeholder')
 
-        self.output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 64),
-                                            name='output_placeholder')
-
-        self.f0_input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 1),
-                                              name='f0_input_placeholder')
-
-        self.rand_input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 4),
-                                                name='rand_input_placeholder')
-
-        # pho_input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size,config.max_phr_len, 42),name='pho_input_placeholder')
-
-        self.prob = tf.placeholder_with_default(1.0, shape=())
-
-        self.phoneme_labels = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len),
-                                        name='phoneme_placeholder')
-        self.phone_onehot_labels = tf.one_hot(indices=tf.cast(phoneme_labels, tf.int32), depth=42)
-
-        self.singer_labels = tf.placeholder(tf.float32, shape=(config.batch_size), name='singer_placeholder')
-        self.singer_onehot_labels = tf.one_hot(indices=tf.cast(singer_labels, tf.int32), depth=12)
-
-        self.is_train = tf.placeholder(tf.bool, name="is_train")
 
     def load_model(self, sess, log_dir):
         """
@@ -74,8 +46,6 @@ class Model(object):
         """
         self.init_op = tf.group(tf.global_variables_initializer(), tf.local_variables_initializer())
         self.saver = tf.train.Saver(max_to_keep= config.max_models_to_keep)
-
-
 
 
         sess.run(self.init_op)
@@ -87,30 +57,6 @@ class Model(object):
             self.saver.restore(sess, ckpt.model_checkpoint_path)
 
 
-    def get_optimizers(self):
-        """
-        Returns the optimizers for the model, based on the loss functions and the mode. 
-        """
-        self.optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
-        self.global_step = tf.Variable(0, name='global_step', trainable=False)
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        with tf.control_dependencies(update_ops):
-            self.train_function = self.optimizer.minimize(self.loss, global_step = self.global_step)
-
-
-    def get_summary(self, sess, log_dir):
-        """
-        Gets the summaries and summary writers for the losses.
-        """
-
-        self.pho_summary = tf.summary.scalar('pho_loss', self.pho_loss)
-
-        self.pho_acc_summary = tf.summary.scalar('pho_accuracy', self.pho_acc[0])
-
-
-        self.train_summary_writer = tf.summary.FileWriter(log_dir+'train/', sess.graph)
-        self.val_summary_writer = tf.summary.FileWriter(log_dir+'val/', sess.graph)
-        self.summary = tf.summary.merge_all()
     def save_model(self, sess, epoch, log_dir):
         """
         Save the model.
@@ -127,100 +73,77 @@ class Model(object):
         print('epoch %d took (%.3f sec)' % (epoch + 1, duration))
         for key, value in print_dict.items():
             print('{} : {}'.format(key, value))
-
-
-class MultiSynth(Model):
+            
+class Phone_Net(Model):
 
     def loss_function(self):
         """
         returns the loss function for the model, based on the mode. 
         """
-        self.final_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Final_Model")
+        # self.final_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Final_Model")
 
-        self.g_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Generator")
+        # self.g_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Generator")
 
-        self.d_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Discriminator")
+        # self.d_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="Discriminator")
 
-        self.phone_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="phone_Model")
+        # self.phone_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope="phone_Model")
 
 
 
         # Phoneme network loss and summary
 
-        self.pho_weights = tf.reduce_sum(config.phonemas_weights * phone_onehot_labels, axis=-1)
 
-        self.unweighted_losses = tf.nn.softmax_cross_entropy_with_logits(labels=phone_onehot_labels, logits=pho_logits)
+        self.pho_weights = tf.reduce_sum(config.phonemas_weights * self.phone_onehot_labels, axis=-1)
 
-        self.weighted_losses = unweighted_losses * pho_weights
+        self.unweighted_losses = tf.nn.softmax_cross_entropy_with_logits(labels=self.phone_onehot_labels, logits = self.pho_logits)
 
-        self.pho_loss = tf.reduce_mean(weighted_losses)
+        self.weighted_losses = self.unweighted_losses * self.pho_weights
 
-        self.pho_acc = tf.metrics.accuracy(labels=phoneme_labels, predictions=pho_classes)
+        self.pho_loss = tf.reduce_mean(self.weighted_losses)
 
-
-
-
-        # Discriminator Loss
+        self.pho_acc = tf.metrics.accuracy(labels = self.phoneme_labels, predictions = self.pho_classes)
 
 
-        # D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels = tf.ones_like(D_real) , logits=D_real+1e-12))
-        # D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels = tf.zeros_like(D_fake) , logits=D_fake+1e-12)) + tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels = tf.zeros_like(D_fake_2) , logits=D_fake_2+1e-12)) *0.5
-        # D_loss_fake_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels = tf.zeros_like(D_fake_real) , logits=D_fake_real+1e-12))
+    def get_optimizers(self):
+        """
+        Returns the optimizers for the model, based on the loss functions and the mode. 
+        """
+        self.optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
+        self.global_step = tf.Variable(0, name='global_step', trainable=False)
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            self.train_function = self.optimizer.minimize(self.pho_loss, global_step = self.global_step)
 
-        # D_loss_real = tf.reduce_mean(D_real+1e-12)
-        # D_loss_fake = - tf.reduce_mean(D_fake+1e-12)
-        # D_loss_fake_real = - tf.reduce_mean(D_fake_real+1e-12)
+    def get_summary(self, sess, log_dir):
+        """
+        Gets the summaries and summary writers for the losses.
+        """
 
+        self.pho_summary = tf.summary.scalar('pho_loss', self.pho_loss)
 
-        # gradients = tf.gradients(d_hat, x_hat)[0] + 1e-6
-        # slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
-        # gradient_penalty = tf.reduce_mean((slopes-1.0)**2)
-        # errD += gradient_penalty
-        # D_loss_fake_real = - tf.reduce_mean(D_fake_real)
-
-
-        D_correct_pred = tf.equal(tf.round(tf.sigmoid(D_real)), tf.ones_like(D_real))
-
-        D_correct_pred_fake = tf.equal(tf.round(tf.sigmoid(D_fake_real)), tf.ones_like(D_fake_real))
-
-        D_accuracy = tf.reduce_mean(tf.cast(D_correct_pred, tf.float32))
-
-        D_accuracy_fake = tf.reduce_mean(tf.cast(D_correct_pred_fake, tf.float32))
+        self.pho_acc_summary = tf.summary.scalar('pho_accuracy', self.pho_acc[0])
 
 
+        self.train_summary_writer = tf.summary.FileWriter(log_dir+'train/', sess.graph)
+        self.val_summary_writer = tf.summary.FileWriter(log_dir+'val/', sess.graph)
+        self.summary = tf.summary.merge_all()
 
-        D_loss = tf.reduce_mean(D_real +1e-12)-tf.reduce_mean(D_fake+1e-12)
-        # -tf.reduce_mean(D_fake_real+1e-12)*0.001
+    def get_placeholders(self):
+        """
+        Returns the placeholders for the model. 
+        Depending on the mode, can return placeholders for either just the generator or both the generator and discriminator.
+        """
 
-        dis_summary = tf.summary.scalar('dis_loss', D_loss)
+        self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
+                                           name='input_placeholder')
 
-        dis_acc_summary = tf.summary.scalar('dis_acc', D_accuracy)
+        self.phoneme_labels = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len),
+                                        name='phoneme_placeholder')
+        self.phone_onehot_labels = tf.one_hot(indices=tf.cast(self.phoneme_labels, tf.int32), depth=42)
 
-        dis_acc_fake_summary = tf.summary.scalar('dis_acc_fake', D_accuracy_fake)
+        self.is_train = tf.placeholder(tf.bool, name="is_train")
 
-        #Final net loss
 
-        # G_loss_GAN = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels= tf.ones_like(D_real), logits=D_fake+1e-12)) + tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels= tf.ones_like(D_fake_2), logits=D_fake_2+1e-12))
-        # + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5))*(1-input_placeholder[:,:,-1:])) *0.00001
-
-        G_loss_GAN = tf.reduce_mean(D_fake+1e-12) + tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5))) *0.00005
-                     # + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= output_placeholder, logits=voc_output)) *0.000005
-        #
-
-        G_correct_pred = tf.equal(tf.round(tf.sigmoid(D_fake)), tf.ones_like(D_real))
-
-        # G_correct_pred_2 = tf.equal(tf.round(tf.sigmoid(D_fake_2)), tf.ones_like(D_real))
-
-        G_accuracy = tf.reduce_mean(tf.cast(G_correct_pred, tf.float32))
-
-        gen_summary = tf.summary.scalar('gen_loss', G_loss_GAN)
-
-        gen_acc_summary = tf.summary.scalar('gen_acc', G_accuracy)
-
-        final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= output_placeholder, logits=voc_output)) \
-                           # +tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= output_placeholder, logits=voc_output_3))*0.5
-
-        # reconstruct_loss = tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5)))
     def read_input_file(self, file_name):
         """
         Function to read and process input file, given name and the synth_mode.
@@ -256,7 +179,7 @@ class MultiSynth(Model):
 
         in_batches_hcqt, nchunks_in = utils.generate_overlapadd(hcqt.reshape(-1,6*360))
         in_batches_hcqt = in_batches_hcqt.reshape(in_batches_hcqt.shape[0], config.batch_size, config.max_phr_len,
-		                                          6, 360)
+                                                  6, 360)
         in_batches_hcqt = np.swapaxes(in_batches_hcqt, -1, -2)
 
         return in_batches_hcqt, nchunks_in, hcqt.shape[0]
@@ -299,104 +222,8 @@ class MultiSynth(Model):
         utils.save_multif0_output(time_1, ori_freq, save_path)
 
 
-    def test_wav_folder(self, folder_name, save_path):
-        """
-        Function to extract multi pitch from wav files in a folder
-        """
-
-        songs = next(os.walk(folder_name))[1]
-
-        sess = tf.Session()
-        self.load_model(sess, log_dir = config.log_dir)
-        
-
-        for song in songs:
-        	count = 0
-        	print ("Processing song %s" % song)
-	        file_list = [x for x in os.listdir(os.path.join(folder_name, song)) if x.endswith('.wav') and not x.startswith('.')]
-	        for file_name in file_list:
-		        in_batches_hcqt, nchunks_in, max_len = self.read_input_wav_file(os.path.join(folder_name, song, file_name))
-		        out_batches_atb = []
-		        for in_batch_hcqt in in_batches_hcqt:
-		            feed_dict = {self.input_placeholder: in_batch_hcqt, self.is_train: False}
-		            out_atb = sess.run(self.outputs, feed_dict=feed_dict)
-		            out_batches_atb.append(out_atb)
-		        out_batches_atb = np.array(out_batches_atb)
-		        out_batches_atb = utils.overlapadd(out_batches_atb.reshape(out_batches_atb.shape[0], config.batch_size, config.max_phr_len, -1),
-		                         nchunks_in)
-		        out_batches_atb = out_batches_atb[:max_len]
-		        time_1, ori_freq = utils.process_output(out_batches_atb)
-		        utils.save_multif0_output(time_1, ori_freq, os.path.join(save_path,song,file_name[:-4]+'.csv'))
-		        count+=1
-		        utils.progress(count, len(file_list), suffix='evaluation done')
-
-    def extract_f0_file(self, file_name, sess):
-        if file_name in config.val_list:
-            mode = "Val"
-        else:
-            mode = "Train"
-        num_singers = file_name.count('1')
-        song_name = file_name.split('_')[0].capitalize()
-        voice = config.log_dir.split('_')[-1][:-1].capitalize()
-
-        in_batches_hcqt, atb, nchunks_in = self.read_input_file(file_name)
-        out_batches_atb = []
-        for in_batch_hcqt in in_batches_hcqt:
-            feed_dict = {self.input_placeholder: in_batch_hcqt, self.is_train: False}
-            out_atb = sess.run(self.outputs, feed_dict=feed_dict)
-            out_batches_atb.append(out_atb)
-        out_batches_atb = np.array(out_batches_atb)
-        out_batches_atb = utils.overlapadd(out_batches_atb.reshape(out_batches_atb.shape[0], config.batch_size, config.max_phr_len, -1),
-                         nchunks_in)
-        out_batches_atb = out_batches_atb[:atb.shape[0]]
-
-        baba = np.mean(np.equal(np.round(atb[atb>0]), np.round(out_batches_atb[atb>0])))
-
-        atb = filters.gaussian_filter1d(atb.T, 0.5, axis=0, mode='constant').T
 
 
-        plt.figure(1)
-        plt.suptitle("Note Probabilities for song {}, voice {}, with {} singers, from the {} set".format(song_name, voice,num_singers, mode) + "bin activation accuracy: {0:.0%}".format(baba), fontsize=10)
-        ax1 = plt.subplot(211)
-
-        plt.imshow(np.round(atb.T), origin = 'lower', aspect = 'auto')
-
-        ax1.set_title("Ground Truth Note Probabilities (10 cents per bin)", fontsize=10)
-        ax2 = plt.subplot(212, sharex = ax1, sharey=ax1)
-        plt.imshow(np.round(out_batches_atb.T), origin='lower', aspect='auto')
-        ax2.set_title("Output Note Probabilities (10 cents per bin)", fontsize=10)
-        plt.show()
-
-        cont = utils.query_yes_no("Do you want to see probability distribution per frame? Default No", default = "no")
-
-        while cont:
-
-            num_sings = int(input("How many distinct pitches per frame to plot. Default {}".format(num_singers)) or num_singers)
-
-
-            index = np.random.choice(np.where(atb.sum(axis=1)==num_sings)[0])
-            plt.figure(1)
-            plt.suptitle("Probability Distribution For one of the Frames With {} Distinct Pitches in GT".format(num_singers))
-            ax1 = plt.subplot(211)
-            ax1.set_title("Ground Truth Probability Distribution Across Frame", fontsize=10)
-            plt.plot(np.round(atb[index]))
-            ax2 = plt.subplot(212, sharex = ax1, sharey = ax1)
-            plt.plot(np.round(out_batches_atb[index]))
-            ax2.set_title("Output Probability Distribution Across Frame", fontsize=10)
-            plt.show()
-            cont = utils.query_yes_no("Do you want to see probability distribution per frame? Default No", default="no")
-
-        #
-        time_1, ori_freq = utils.process_output(atb)
-        time_2, est_freq = utils.process_output(out_batches_atb)
-
-        utils.save_multif0_output(time_1, ori_freq, './gt.csv')
-        utils.save_multif0_output(time_2, est_freq, './op.csv')
-
-        scores = mir_eval.multipitch.evaluate(time_1, ori_freq, time_2, est_freq)
-        return scores
-
-        # import pdb;pdb.set_trace()
 
     def train(self):
         """
@@ -416,8 +243,8 @@ class MultiSynth(Model):
 
 
         for epoch in range(start_epoch, config.num_epochs):
-            data_generator = data_gen()
-            val_generator = data_gen(mode = 'Val')
+            data_generator = data_gen_pho()
+            val_generator = data_gen_pho(mode = 'Val')
             start_time = time.time()
 
 
@@ -428,9 +255,9 @@ class MultiSynth(Model):
             epoch_val_acc = 0
 
             with tf.variable_scope('Training'):
-                for ins, outs in data_generator:
+                for spec, phons in data_generator:
 
-                    step_loss, step_acc, summary_str = self.train_model(ins, outs, sess)
+                    step_loss, step_acc, summary_str = self.train_model(spec, phons, sess)
                     epoch_train_loss+=step_loss
                     epoch_train_acc+=step_acc
 
@@ -449,8 +276,8 @@ class MultiSynth(Model):
             if (epoch + 1) % config.validate_every == 0:
                 batch_num = 0
                 with tf.variable_scope('Validation'):
-                    for ins, outs in val_generator:
-                        step_loss, step_acc, summary_str = self.validate_model(ins, outs, sess)
+                    for spec, phons in val_generator:
+                        step_loss, step_acc, summary_str = self.validate_model(spec, phons, sess)
                         epoch_val_loss += step_loss
                         epoch_val_acc += step_acc
 
@@ -472,43 +299,27 @@ class MultiSynth(Model):
             if (epoch + 1) % config.save_every == 0 or (epoch + 1) == config.num_epochs:
                 self.save_model(sess, epoch+1, config.log_dir)
 
-    def train_model(self, ins, outs, sess):
+    def train_model(self, spec, phons, sess):
         """
         Function to train the model for each epoch
         """
-        feed_dict = {self.input_placeholder: ins, self.output_placeholder: outs, self.is_train: True}
+        feed_dict = {self.input_placeholder: spec, self.phoneme_labels: phons, self.is_train: True}
         _, step_loss, step_acc = sess.run(
-            [self.train_function, self.loss, self.accuracy], feed_dict=feed_dict)
+            [self.train_function, self.pho_loss, self.pho_acc], feed_dict=feed_dict)
         summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
-        return step_loss, step_acc, summary_str
+        return step_loss, step_acc[0], summary_str
 
-    def validate_model(self,ins, outs, sess):
+    def validate_model(self,spec, phons, sess):
         """
         Function to train the model for each epoch
         """
-        feed_dict = {self.input_placeholder: ins, self.output_placeholder: outs, self.is_train: False}
+        feed_dict = {self.input_placeholder: spec, self.phoneme_labels: phons, self.is_train: False}
 
-        step_loss, step_acc = sess.run([self.loss, self.accuracy], feed_dict=feed_dict)
+        step_loss, step_acc = sess.run([self.pho_loss, self.pho_acc], feed_dict=feed_dict)
         summary_str = sess.run(self.summary, feed_dict=feed_dict)
-        return step_loss, step_acc, summary_str
-        # val_list = config.val_list
-        # start_index = randint(0,len(val_list)-(config.batches_per_epoch_val+1))
-        # pre_scores = []
-        # acc_scores = []
-        # rec_scores = []
-        # count = 0
-        # for file_name in val_list[start_index:start_index+config.batches_per_epoch_val]:
-        #     pre, acc, rec = self.validate_file(file_name, sess)
-        #     pre_scores.append(pre)
-        #     acc_scores.append(acc)
-        #     rec_scores.append(rec)
-        #     count+=1
-        #     utils.progress(count, config.batches_per_epoch_val, suffix='validation done')
-        # pre_score = np.array(pre_scores).mean()
-        # acc_score = np.array(acc_scores).mean()
-        # rec_score = np.array(rec_scores).mean()
-        return pre_score, acc_score, rec_score
+        return step_loss, step_acc[0], summary_str
+
 
     def eval_all(self, file_name_csv):
         sess = tf.Session()
@@ -543,36 +354,87 @@ class MultiSynth(Model):
         """
         with tf.variable_scope('phone_Model') as scope:
             # regularizer = tf.contrib.layers.l2_regularizer(scale=0.1)
-            self.pho_logits = modules.phone_network(input_placeholder)
-            self.pho_classes = tf.argmax(pho_logits, axis=-1)
-            self.pho_probs = tf.nn.softmax(pho_logits)
+            self.pho_logits = modules.phone_network(self.input_placeholder, self.is_train)
+            self.pho_classes = tf.argmax(self.pho_logits, axis=-1)
+            self.pho_probs = tf.nn.softmax(self.pho_logits)
 
-        with tf.variable_scope('Final_Model') as scope:
-            self.voc_output = modules.final_net(singer_onehot_labels, f0_input_placeholder, phone_onehot_labels)
-            self.voc_output_decoded = tf.nn.sigmoid(voc_output)
-            self.scope.reuse_variables()
-            self.oc_output_3 = modules.final_net(singer_onehot_labels, f0_input_placeholder, pho_probs)
-            self.voc_output_3_decoded = tf.nn.sigmoid(voc_output_3)
+class MultiSynth(Model):
 
-        # with tf.variable_scope('singer_Model') as scope:
-        #     singer_embedding, singer_logits = modules.singer_network(input_placeholder, prob)
-        #     singer_classes = tf.argmax(singer_logits, axis=-1)
-        #     singer_probs = tf.nn.softmax(singer_logits)
+    def get_optimizers(self):
+        """
+        Returns the optimizers for the model, based on the loss functions and the mode. 
+        """
 
-        with tf.variable_scope('Generator') as scope:
-            self.voc_output_2 = modules.GAN_generator(singer_onehot_labels, phone_onehot_labels, f0_input_placeholder,
-                                                 rand_input_placeholder)
+        self.pho_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Phone_Model')
+        self.singer_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Singer_Model')
+        self.f0_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'F0_Model')
+        self.final_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Final_Model')
 
-        with tf.variable_scope('Discriminator') as scope:
-            self.D_real = modules.GAN_discriminator((output_placeholder - 0.5) * 2, singer_onehot_labels,
-                                               phone_onehot_labels, f0_input_placeholder)
-            scope.reuse_variables()
-            self.D_fake = modules.GAN_discriminator(voc_output_2, singer_onehot_labels, phone_onehot_labels,
-                                               f0_input_placeholder)
+        self.pho_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
+        self.final_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
+        self.singer_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
+        self.f0_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
 
+        self.global_step = tf.Variable(0, name='global_step', trainable=False)
+        self.global_step_pho = tf.Variable(0, name='pho_global_step', trainable=False)
+        self.global_step_f0 = tf.Variable(0, name='f0_global_step', trainable=False)
+        self.global_step_singer = tf.Variable(0, name='singer_global_step', trainable=False)
 
 
-class Voc_Sep(Model):
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            self.final_train_function = self.final_optimizer.minimize(self.final_loss, global_step = self.global_step, var_list = self.final_params)
+            self.pho_train_function = self.pho_optimizer.minimize(self.pho_loss, global_step = self.global_step_pho, var_list = self.pho_params)
+            self.f0_train_function = self.f0_optimizer.minimize(self.f0_loss, global_step = self.global_step_f0, var_list = self.f0_params)
+            self.singer_train_function = self.singer_optimizer.minimize(self.singer_loss, global_step = self.global_step_singer, var_list = self.singer_params)
+
+    def loss_function(self):
+        """
+        returns the loss function for the model, based on the mode. 
+        """
+
+        self.pho_weights = tf.reduce_sum(config.phonemas_weights * self.phone_onehot_labels, axis=-1)
+
+        self.unweighted_losses = tf.nn.softmax_cross_entropy_with_logits(labels=self.phone_onehot_labels, logits = self.pho_logits)
+
+        self.weighted_losses = self.unweighted_losses * self.pho_weights
+
+        self.pho_loss = tf.reduce_mean(self.weighted_losses)
+
+        self.pho_acc = tf.metrics.accuracy(labels = self.phoneme_labels, predictions = self.pho_classes)
+
+        self.singer_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.singer_onehot_labels, logits=self.singer_logits))
+
+        self.singer_acc = tf.metrics.accuracy(labels=self.singer_labels , predictions=self.singer_classes)
+
+        self.f0_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.f0_onehot_labels, logits=self.f0_logits))
+
+        self.f0_acc = tf.metrics.accuracy(labels=self.f0_labels , predictions=self.f0_classes)
+
+        self.final_loss = tf.reduce_sum(tf.abs(self.input_placeholder- self.output))/(config.batch_size*config.max_phr_len*config.output_features)
+
+    def get_summary(self, sess, log_dir):
+        """
+        Gets the summaries and summary writers for the losses.
+        """
+
+        self.pho_summary = tf.summary.scalar('pho_loss', self.pho_loss)
+
+        self.pho_acc_summary = tf.summary.scalar('pho_accuracy', self.pho_acc[0])
+
+        self.final_summary = tf.summary.scalar('final_loss', self.final_loss)
+
+        self.f0_summary = tf.summary.scalar('f0_loss', self.f0_loss)
+
+        self.f0_acc_summary = tf.summary.scalar('f0_accuracy', self.f0_acc[0])
+
+        self.singer_summary = tf.summary.scalar('singer_loss', self.singer_loss)
+
+        self.singer_acc_summary = tf.summary.scalar('singer_accuracy', self.singer_acc[0])
+
+        self.train_summary_writer = tf.summary.FileWriter(log_dir+'train/', sess.graph)
+        self.val_summary_writer = tf.summary.FileWriter(log_dir+'val/', sess.graph)
+        self.summary = tf.summary.merge_all()
 
     def get_placeholders(self):
         """
@@ -580,115 +442,22 @@ class Voc_Sep(Model):
         Depending on the mode, can return placeholders for either just the generator or both the generator and discriminator.
         """
 
-        self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 360),name='input_placeholder')
-        self.f0_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 360),name='f0_placeholder')
-        self.feats_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 64),name='feats_placeholder')
+        self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
+                                           name='input_placeholder')
+
+        self.phoneme_labels = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len),
+                                        name='phoneme_placeholder')
+        self.phone_onehot_labels = tf.one_hot(indices=tf.cast(self.phoneme_labels, tf.int32), depth = config.num_phos)
+        
+        self.f0_labels = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len),
+                                        name='f0_placeholder')
+        self.f0_onehot_labels = tf.one_hot(indices=tf.cast(self.phoneme_labels, tf.int32), depth = config.num_f0)
+
+        self.singer_labels = tf.placeholder(tf.float32, shape=(config.batch_size),name='singer_placeholder')
+        self.singer_onehot_labels = tf.one_hot(indices=tf.cast(self.singer_labels, tf.int32), depth = config.num_singers)
+
         self.is_train = tf.placeholder(tf.bool, name="is_train")
 
-    def loss_function(self):
-        """
-        returns the loss function for the model, based on the mode. 
-        """
-        self.loss = tf.reduce_sum(tf.abs(self.output_logits - self.feats_placeholder))
-
-    def read_input_file(self, file_name):
-        """
-        Function to read and process input file, given name and the synth_mode.
-        Returns features for the file based on mode (0 for hdf5 file, 1 for wav file).
-        Currently, only the HDF5 version is implemented.
-        """
-        feat_file = h5py.File(config.feats_dir + file_name, 'r')
-
-        cqt = abs(feat_file['voc_cqt'][()])
-
-        feat_file.close()
-
-        return cqt
-
-
-    def extract_part_from_file(self, file_name, part, sess):
-
-        parts = ['_soprano_', '_alto_', '_bass_', '_tenor_']
-
-        cqt = self.read_input_file(file_name)
-
-        song_name = file_name.split('_')[0]
-
-        voc_num = 9-part
-        voc_part = parts[part]
-        voc_track= file_name[-voc_num]
-
-        voc_feat_file = h5py.File(config.voc_feats_dir + song_name + voc_part + voc_track + '.wav.hdf5', 'r')
-
-        voc_feats = voc_feat_file["voc_feats"][()]
-
-        voc_feats[np.argwhere(np.isnan(voc_feats))] = 0.0
-
-        atb = voc_feat_file['atb'][()]
-
-        atb = atb[:, 1:]
-
-        atb[:, 0:4] = 0
-
-        atb = np.clip(atb, 0.0, 1.0)
-
-        max_len = min(len(voc_feats), len(cqt))
-
-        voc_feats = voc_feats[:max_len]
-
-        cqt = cqt[:max_len]
-
-        atb = atb[:max_len]
-
-        # voc_feats = (voc_feats - min_feat) / (max_feat - min_feat)
-        #
-        # voc_feats = np.clip(voc_feats[:, :, :-2], 0.0, 0.1)
-
-        # sig_process.feats_to_audio(voc_feats, 'booboo.wav')
-
-        in_batches_cqt, nchunks_in = utils.generate_overlapadd(cqt)
-
-        in_batches_atb, nchunks_in = utils.generate_overlapadd(atb)
-
-        # import pdb;pdb.set_trace()
-        out_batches_feats = []
-        for in_batch_cqt, in_batch_atb in zip(in_batches_cqt, in_batches_atb):
-            feed_dict = {self.input_placeholder: in_batch_cqt, self.f0_placeholder: in_batch_atb, self.is_train: False}
-            out_feat = sess.run(self.output_logits, feed_dict=feed_dict)
-            out_batches_feats.append(out_feat)
-
-
-        out_batches_feats = np.array(out_batches_feats)
-
-
-        out_feats = utils.overlapadd(out_batches_feats.reshape(out_batches_feats.shape[0], config.batch_size, config.max_phr_len, -1),
-                         nchunks_in)
-
-        out_feats = out_feats * (max_feat - min_feat) + min_feat
-
-        out_feats = out_feats[:max_len]
-
-        out_feats = np.concatenate((out_feats, voc_feats[:, -2:]), axis=-1)
-
-        plt.figure(1)
-        plt.subplot(211)
-        plt.imshow(voc_feats.T, origin = 'lower', aspect = 'auto')
-        plt.subplot(212)
-        plt.imshow(out_feats.T, origin='lower', aspect='auto')
-        plt.show()
-
-
-        sig_process.feats_to_audio(out_feats, 'extracted.wav')
-
-
-        import pdb;pdb.set_trace()
-
-        # import pdb;pdb.set_trace()
-
-    def extract_file(self, file_name, part):
-        sess = tf.Session()
-        self.load_model(sess, config.log_dir_sep)
-        self.extract_part_from_file(file_name, part, sess)
 
     def train(self):
         """
@@ -699,8 +468,8 @@ class Voc_Sep(Model):
 
         self.loss_function()
         self.get_optimizers()
-        self.load_model(sess, config.log_dir_sep)
-        self.get_summary(sess, config.log_dir_sep)
+        self.load_model(sess, config.log_dir)
+        self.get_summary(sess, config.log_dir)
         start_epoch = int(sess.run(tf.train.get_global_step()) / (config.batches_per_epoch_train))
 
 
@@ -708,21 +477,51 @@ class Voc_Sep(Model):
 
 
         for epoch in range(start_epoch, config.num_epochs):
-            data_generator = sep_gen()
+            data_generator = data_gen_full()
+            val_generator = data_gen_full(mode = 'Val')
             start_time = time.time()
 
 
             batch_num = 0
-            epoch_train_loss = 0
+            epoch_final_loss = 0
 
+            epoch_pho_loss = 0
+            epoch_pho_acc = 0
+
+            epoch_f0_loss = 0
+            epoch_f0_acc = 0
+
+            epoch_singer_loss = 0
+            epoch_singer_acc = 0
+
+            val_final_loss = 0
+
+            val_pho_loss = 0
+            val_pho_acc = 0
+
+            val_f0_loss = 0
+            val_f0_acc = 0
+
+            val_singer_loss = 0
+            val_singer_acc = 0
 
             with tf.variable_scope('Training'):
-                for ins, f0s, feats in data_generator:
+                for mix_in, pho_targs, f0_targs, singer_targs in data_generator:
 
-                    step_loss, summary_str = self.train_model(ins, f0s, feats, sess)
-                    if np.isnan(step_loss):
-                        import pdb;pdb.set_trace()
-                    epoch_train_loss+=step_loss
+                    final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc, summary_str = self.train_model(mix_in, pho_targs, f0_targs, singer_targs, sess)
+
+                    # import pdb;pdb.set_trace()
+
+                    epoch_final_loss+=final_loss
+
+                    epoch_pho_loss+=pho_loss
+                    epoch_pho_acc+=pho_acc
+
+                    epoch_f0_loss+=f0_loss
+                    epoch_f0_acc+=f0_acc
+
+                    epoch_singer_loss+=singer_loss
+                    epoch_singer_acc+=singer_acc
 
                     self.train_summary_writer.add_summary(summary_str, epoch)
                     self.train_summary_writer.flush()
@@ -730,85 +529,107 @@ class Voc_Sep(Model):
                     utils.progress(batch_num,config.batches_per_epoch_train, suffix = 'training done')
 
                     batch_num+=1
-                    # import pdb;pdb.set_trace()
 
-                epoch_train_loss = epoch_train_loss/batch_num
-                print_dict = {"Training Loss": epoch_train_loss}
+                epoch_final_loss = epoch_final_loss/batch_num
 
-            # if (epoch + 1) % config.validate_every == 0:
-                # pre, acc, rec = self.validate_model(sess)
-                # print_dict["Validation Precision"] = pre
-                # print_dict["Validation Accuracy"] = acc
-                # print_dict["Validation Recall"] = rec
+                epoch_pho_loss = epoch_pho_loss/batch_num
+                epoch_pho_acc = epoch_pho_acc/batch_num
+
+                epoch_f0_loss = epoch_f0_loss/batch_num
+                epoch_f0_acc = epoch_f0_acc/batch_num
+
+                epoch_singer_loss = epoch_singer_loss/batch_num
+                epoch_singer_acc = epoch_singer_acc/batch_num
+
+                print_dict = {"Final Loss": epoch_final_loss}
+
+                print_dict["Pho Loss"] =  epoch_pho_loss
+                print_dict["Pho Accuracy"] =  epoch_pho_acc
+
+                print_dict["F0 Loss"] =  epoch_f0_loss
+                print_dict["F0 Accuracy"] =  epoch_f0_acc
+
+                print_dict["Singer Loss"] =  epoch_singer_loss
+                print_dict["Singer Accuracy"] =  epoch_singer_acc
+
+            if (epoch + 1) % config.validate_every == 0:
+                batch_num = 0
+                with tf.variable_scope('Validation'):
+                    for mix_in, pho_targs, f0_targs, singer_targs in val_generator:
+
+                        final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc, summary_str = self.validate_model(mix_in, pho_targs, f0_targs, singer_targs, sess)
+                        val_final_loss+=final_loss
+
+                        val_pho_loss+=pho_loss
+                        val_pho_acc+=pho_acc
+
+                        val_f0_loss+=f0_loss
+                        val_f0_acc+=f0_acc
+
+                        val_singer_loss+=singer_loss
+                        val_singer_acc+=singer_acc
+
+                        self.val_summary_writer.add_summary(summary_str, epoch)
+                        self.val_summary_writer.flush()
+                        batch_num+=1
+
+                        utils.progress(batch_num, config.batches_per_epoch_val, suffix='validation done')
+
+                    val_final_loss = val_final_loss/batch_num
+
+                    val_pho_loss = val_pho_loss/batch_num
+                    val_pho_acc = val_pho_acc/batch_num
+
+                    val_f0_loss = val_f0_loss/batch_num
+                    val_f0_acc = val_f0_acc/batch_num
+
+                    val_singer_loss = val_singer_loss/batch_num
+                    val_singer_acc = val_singer_acc/batch_num\
+
+                    print_dict["Val Final Loss"] =  val_final_loss
+
+                    print_dict["Val Pho Loss"] =  val_pho_loss
+                    print_dict["Val Pho Accuracy"] =  val_pho_acc
+
+                    print_dict["Val F0 Loss"] =  val_f0_loss
+                    print_dict["Val F0 Accuracy"] =  val_f0_acc
+
+                    print_dict["Val Singer Loss"] =  val_singer_loss
+                    print_dict["Val Singer Accuracy"] =  val_singer_acc
 
             end_time = time.time()
             if (epoch + 1) % config.print_every == 0:
                 self.print_summary(print_dict, epoch, end_time-start_time)
             if (epoch + 1) % config.save_every == 0 or (epoch + 1) == config.num_epochs:
-                self.save_model(sess, epoch+1, config.log_dir_sep)
+                self.save_model(sess, epoch+1, config.log_dir)
 
-    def train_model(self, ins, f0s, feats, sess):
+    def train_model(self, mix_in, pho_targs, f0_targs, singer_targs, sess):
         """
         Function to train the model for each epoch
         """
-        feed_dict = {self.input_placeholder: ins, self.f0_placeholder: f0s, self.feats_placeholder: feats, self.is_train: False}
-        _, step_loss= sess.run(
-            [self.train_function, self.loss], feed_dict=feed_dict)
+        feed_dict = {self.input_placeholder: mix_in, self.phoneme_labels: pho_targs, self.f0_labels: f0_targs, self.singer_labels: singer_targs, self.is_train: True}
+
+        _, _, _, _, final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc = sess.run(
+            [self.f0_train_function,self.pho_train_function, self.singer_train_function, self.final_train_function, self.final_loss, self.pho_loss,
+             self.pho_acc, self.f0_loss, self.f0_acc, self.singer_loss, self.singer_acc], feed_dict=feed_dict)
+
         summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
-        return step_loss, summary_str
+        return final_loss, pho_loss, pho_acc[0],f0_loss, f0_acc[0], singer_loss, singer_acc[0],  summary_str
 
-    def validate_model(self, sess):
+    def validate_model(self,mix_in, pho_targs, f0_targs, singer_targs, sess):
         """
         Function to train the model for each epoch
         """
-        # feed_dict = {self.input_placeholder: ins, self.output_placeholder: outs, self.is_train: False}
-        #
-        # step_loss= sess.run(self.loss, feed_dict=feed_dict)
-        # summary_str = sess.run(self.summary, feed_dict=feed_dict)
-        # return step_loss, summary_str
-        val_list = config.val_list
-        start_index = randint(0,len(val_list)-(config.batches_per_epoch_val+1))
-        pre_scores = []
-        acc_scores = []
-        rec_scores = []
-        count = 0
-        for file_name in val_list[start_index:start_index+config.batches_per_epoch_val]:
-            pre, acc, rec = self.validate_file(file_name, sess)
-            pre_scores.append(pre)
-            acc_scores.append(acc)
-            rec_scores.append(rec)
-            count+=1
-            utils.progress(count, config.batches_per_epoch_val, suffix='validation done')
-        pre_score = np.array(pre_scores).mean()
-        acc_score = np.array(acc_scores).mean()
-        rec_score = np.array(rec_scores).mean()
-        return pre_score, acc_score, rec_score
+        feed_dict = {self.input_placeholder: mix_in, self.phoneme_labels: pho_targs, self.f0_labels: f0_targs, self.singer_labels: singer_targs, self.is_train: False}
 
-    def eval_all(self, file_name_csv):
-        sess = tf.Session()
-        self.load_model(sess)
-        val_list = config.val_list
-        count = 0
-        scores = {}
-        for file_name in val_list:
-            file_score = self.test_file_all(file_name, sess)
-            if count == 0:
-                for key, value in file_score.items():
-                    scores[key] = [value]
-                scores['file_name'] = [file_name]
-            else:
-                for key, value in file_score.items():
-                    scores[key].append(value)
-                scores['file_name'].append(file_name)
+        final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc = sess.run(
+            [self.final_loss, self.pho_loss,
+             self.pho_acc, self.f0_loss, self.f0_acc, self.singer_loss, self.singer_acc], feed_dict=feed_dict)
 
-                # import pdb;pdb.set_trace()
-            count += 1
-            utils.progress(count, len(val_list), suffix='validation done')
-        scores = pd.DataFrame.from_dict(scores)
-        scores.to_csv(file_name_csv)
+        summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
-        return scores
+        return final_loss, pho_loss, pho_acc[0],f0_loss, f0_acc[0], singer_loss, singer_acc[0],  summary_str
 
 
     def model(self):
@@ -817,16 +638,34 @@ class Voc_Sep(Model):
         Defined in modules.
 
         """
-        with tf.variable_scope('Model') as scope:
-            self.output_logits = nr_wavenet(self.input_placeholder,self.f0_placeholder, self.is_train)
+
+        with tf.variable_scope('Singer_Model') as scope:
+            self.singer_emb, self.singer_logits = modules.singer_network(self.input_placeholder)
+            self.singer_classes = tf.argmax(self.singer_logits, axis=-1)
+            self.singer_probs = tf.nn.softmax(self.singer_logits)
+
+        with tf.variable_scope('Phone_Model') as scope:
+            self.pho_emb, self.pho_logits = modules.phone_network(self.input_placeholder)
+            self.pho_classes = tf.argmax(self.pho_logits, axis=-1)
+            self.pho_probs = tf.nn.softmax(self.pho_logits)
+
+
+        with tf.variable_scope('F0_Model') as scope:
+            self.f0_emb, self.f0_logits = modules.f0_network(self.input_placeholder)
+            self.f0_classes = tf.argmax(self.f0_logits, axis=-1)
+            self.f0_probs = tf.nn.softmax(self.f0_logits)
+
+        with tf.variable_scope('Final_Model') as scope:
+            self.output = modules.full_network(self.pho_emb, self.singer_emb, self.f0_emb)
+
 
 def test():
     # model = DeepSal()
     # # model.test_file('nino_4424.hdf5')
     # model.test_wav_folder('./helena_test_set/', './results/')
 
-    model = Voc_Sep()
-    model.extract_file('locus_0024.hdf5', 3)
+    model = MultiSynth()
+    model.train()
 
 if __name__ == '__main__':
     test()

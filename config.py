@@ -14,16 +14,9 @@ wav_dir_vctk_lab = '../datasets/VCTK/VCTK_files/VCTK-Corpus/forPritish/'
 voice_dir = '../ss_synthesis/voice/'
 backing_dir = '../ss_synthesis/backing/'
 
-log_dir = './log_reset'
-
-# log_dir = '../ss_synthesis/log_cross_GANandL1/'
-
-# log_dir = '../ss_synthesis/logL1_and_Gan_l1/'
+log_dir = './log/'
 
 
-# log_dir = './log/'
-log_dir_m1 = './log_m1_old/'
-# log_dir = './log_mfsc_6_best_so_far/'
 data_log = './log/data_log.log'
 
 
@@ -41,8 +34,9 @@ voc_ext = '_voc_stft.npy'
 feats_ext = '_synth_feats.npy'
 
 f0_weight = 10
-max_models_to_keep = 100
+max_models_to_keep = 10
 f0_threshold = 1
+
 
 def get_teacher_prob(epoch):
     if epoch < 500:
@@ -52,6 +46,16 @@ def get_teacher_prob(epoch):
     else:
         return 0.55
 
+filter_len = 3
+encoder_layers = 9
+filters = 32
+
+num_singers = 12
+num_phos = 42
+num_f0 = 256
+max_phr_len = 512
+input_features = 513
+output_features = 513
 
 
 phonemas = ['t', 'y', 'l', 'k', 'aa', 'jh', 'ae', 'ng', 'ah', 'hh', 'z', 'ey', 'f', 'uw', 'iy', 'ay', 'b', 's', 'd', 'sil', 'p', 'n', 'sh', 'ao', 'g', 'ch', 'ih', 'eh', 'aw', 'sp', 'oy', 'th', 'w', 'ow', 'v', 'uh', 'm', 'er', 'zh', 'r', 'dh', 'ax']
@@ -113,23 +117,19 @@ pred_mode = 'all'
 
 # Hyperparameters
 num_epochs = 2500
-num_epochs_m1 = 2000
+
 batches_per_epoch_train = 100
 batches_per_epoch_val = 10
-batches_per_epoch_val_m1 = 300
-batch_size = 30
-samples_per_file = 5
-max_phr_len = 128
-input_features = 513
 
-first_embed = 256
+batch_size = 30
+samples_per_file = 30
+max_phr_len = 512
+input_features = 513
 
 
 lamda = 0.001
 
-lstm_size = 64
 
-output_features = 66
 
 highway_layers = 4
 highway_units = 128
@@ -145,12 +145,13 @@ hoptime = 5.80498866
 
 noise = 0.05
 
-wavenet_layers = 6
+wavenet_layers = 7
 rec_field = 2**wavenet_layers
 wavenet_filters = 64
 
 print_every = 1
 save_every = 50
+validate_every =1 
 
 use_gan = False
 gan_lr = 0.001
