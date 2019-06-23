@@ -645,13 +645,13 @@ class MultiSynth(Model):
             self.singer_probs = tf.nn.softmax(self.singer_logits)
 
         with tf.variable_scope('Phone_Model') as scope:
-            self.pho_emb, self.pho_logits = modules.phone_network(self.input_placeholder)
+            self.pho_emb, self.pho_logits = modules.phone_network(self.input_placeholder, self.is_train)
             self.pho_classes = tf.argmax(self.pho_logits, axis=-1)
             self.pho_probs = tf.nn.softmax(self.pho_logits)
 
 
         with tf.variable_scope('F0_Model') as scope:
-            self.f0_emb, self.f0_logits = modules.f0_network(self.input_placeholder)
+            self.f0_emb, self.f0_logits = modules.f0_network(self.input_placeholder, self.is_train)
             self.f0_classes = tf.argmax(self.f0_logits, axis=-1)
             self.f0_probs = tf.nn.softmax(self.f0_logits)
 
