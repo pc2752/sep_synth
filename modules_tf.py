@@ -144,10 +144,10 @@ def highwaynet(inputs, scope='highway', units=config.highway_units):
     return H * T + inputs * (1.0 - T)
 
 
-# def conv(inputs, kernel_size, filters=config.conv_filters, activation=config.conv_activation, training=True, scope='conv'):
-#   with tf.variable_scope(scope):
-#     x = tf.layers.conv1d(inputs,filters=filters,kernel_size=kernel_size,activation=activation,padding='same')
-#     return x, training=training)
+def conv(inputs, kernel_size, filters=config.conv_filters, activation=config.conv_activation, training=True, scope='conv'):
+  with tf.variable_scope(scope):
+    x = tf.layers.conv1d(inputs,filters=filters,kernel_size=kernel_size,activation=activation,padding='same')
+    return tf.layers.batch_normalization(x, training=training)
 
 
 # def build_encoder(inputs):
@@ -237,11 +237,11 @@ def nr_wavenet_block(inputs, dilation_rate = 2, name = "name"):
 
     con_pad_forward = tf.pad(inputs, [[0,0],[dilation_rate,dilation_rate],[0,0]],"CONSTANT")
 
-    con_sig_forward = tf.layers.conv1d(con_pad_forward, config.wavenet_filters, 3, dilation_rate = dilation_rate, padding = 'valid', name = name+"_1")
+    con_sig_forward = tf.layers.conv1d(con_pad_forward, config.wavenet_filters, 3, dilation_rate = dilation_rate, padding = 'valid', name = name+"_1", kernel_initializer=tf.random_normal_initializer(stddev=0.02))
 
     sig = tf.sigmoid(con_sig_forward)
 
-    con_tanh_forward = tf.layers.conv1d(con_pad_forward, config.wavenet_filters, 3, dilation_rate = dilation_rate, padding = 'valid', name = name+"_2")
+    con_tanh_forward = tf.layers.conv1d(con_pad_forward, config.wavenet_filters, 3, dilation_rate = dilation_rate, padding = 'valid', name = name+"_2", kernel_initializer=tf.random_normal_initializer(stddev=0.02))
 
     tanh = tf.tanh(con_tanh_forward)
 
@@ -283,32 +283,26 @@ def wave_archi(inputs):
 def encoder_conv_block(inputs, layer_num, is_train, num_filters = config.filters):
 
     output = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(inputs, num_filters * 2**int(layer_num/2), (config.filter_len,1)
-        , strides=(2,1),  padding = 'same', name = "G_"+str(layer_num))), training = is_train)
+        , strides=(2,1),  padding = 'same', name = "G_"+str(layer_num), kernel_initializer=tf.random_normal_initializer(stddev=0.02))), training = is_train)
     return output
 
-def encoder_conv_block_sing(inputs, layer_num, num_filters = config.filters):
-
-    output = tf.nn.relu(tf.layers.conv2d(inputs, num_filters * 2**int(layer_num/2), (config.filter_len,1)
-        , strides=(2,1),  padding = 'same', name = "G_"+str(layer_num)))
-    return output
-
-def decoder_conv_block(inputs, layer, layer_num,is_train, num_filters = config.filters):
+def decoder_conv_block(inputs, layer, layer_num, is_train, num_filters = config.filters):
 
     deconv = tf.image.resize_images(inputs, size=(int(config.max_phr_len/2**(config.encoder_layers - 1 - layer_num)),1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
     deconv = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(deconv, num_filters * 2**int((config.encoder_layers -1 - layer_num)/2)
-        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num))), training = is_train)
+        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num), kernel_initializer=tf.random_normal_initializer(stddev=0.02))), training = is_train)
 
     deconv = tf.concat([deconv, layer], axis = -1)
 
     return deconv
 
-def decoder_conv_block_full(inputs, layer_num, num_filters = config.filters):
+def decoder_conv_block_full(inputs, layer_num, is_train, num_filters = config.filters):
 
     deconv = tf.image.resize_images(inputs, size=(int(config.max_phr_len/2**(config.encoder_layers - 1 - layer_num)),1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
-    deconv = tf.nn.relu(tf.layers.conv2d(deconv, num_filters * 2**int((config.encoder_layers -1 - layer_num)/2)
-        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_S"+str(layer_num)))
+    deconv = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(deconv, num_filters * 2**int((config.encoder_layers -1 - layer_num)/2)
+        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_S"+str(layer_num), kernel_initializer=tf.random_normal_initializer(stddev=0.02))), training = is_train)
 
     return deconv
 
@@ -343,7 +337,7 @@ def phone_network(inputs, is_train):
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
 
     inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
-        , name = "P_in"), training = is_train)
+        , name = "P_in", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train)
 
     embedding, output = encoder_decoder_archi(inputs, is_train)
 
@@ -357,47 +351,47 @@ def f0_network(inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
 
-    inputs = tf.layers.dense(inputs, config.wavenet_filters
-        , name = "F_in")
+    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
+        , name = "F_in", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train)
 
     embedding, output = encoder_decoder_archi(inputs, is_train)
 
-    output = tf.layers.dense(output, config.num_f0, name = "F_F")
+    output = tf.layers.batch_normalization(tf.layers.dense(output, config.num_f0, name = "F_F"), training = is_train)
 
     output = tf.squeeze(output)
 
 
     return tf.squeeze(embedding), output
 
-def singer_network(inputs):
+def singer_network(inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
 
-    inputs = tf.layers.dense(inputs, config.wavenet_filters*2
-        , name = "S_in")
+    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters*2
+        , name = "S_in", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train)
 
     encoded = inputs
 
     for i in range(config.encoder_layers):
-        encoded = encoder_conv_block_sing(encoded, i)
+        encoded = encoder_conv_block(encoded, i, is_train)
     encoded = tf.squeeze(encoded)
-    output = tf.layers.dense(encoded, config.num_singers, name = "S_F")
+    output = tf.layers.batch_normalization(tf.layers.dense(encoded, config.num_singers, name = "S_F"), training = is_train)
     return encoded, output
 
-def full_network(content_embedding, singer_embedding, f0_embedding):
+def full_network(content_embedding, singer_embedding, f0_embedding, is_train):
 
     inputs = tf.concat([content_embedding, singer_embedding, f0_embedding], axis = -1)
     inputs = tf.reshape(inputs, [config.batch_size, 1, 1, -1])
 
-    inputs = tf.layers.dense(inputs, config.wavenet_filters*4
-        , name = "S_in")
+    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters*4
+        , name = "S_in", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train)
 
     decoded = inputs
 
     for i in range(config.encoder_layers):
-        decoded = decoder_conv_block_full(decoded, i)
+        decoded = decoder_conv_block_full(decoded, i, is_train)
 
-    output = tf.layers.dense(decoded, config.output_features, name = "Fu_F")
+    output = tf.layers.batch_normalization(tf.layers.dense(decoded, config.output_features, name = "Fu_F"), training = is_train)
 
     return tf.squeeze(output)
 

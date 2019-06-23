@@ -640,7 +640,7 @@ class MultiSynth(Model):
         """
 
         with tf.variable_scope('Singer_Model') as scope:
-            self.singer_emb, self.singer_logits = modules.singer_network(self.input_placeholder)
+            self.singer_emb, self.singer_logits = modules.singer_network(self.input_placeholder, self.is_train)
             self.singer_classes = tf.argmax(self.singer_logits, axis=-1)
             self.singer_probs = tf.nn.softmax(self.singer_logits)
 
@@ -656,7 +656,7 @@ class MultiSynth(Model):
             self.f0_probs = tf.nn.softmax(self.f0_logits)
 
         with tf.variable_scope('Final_Model') as scope:
-            self.output = modules.full_network(self.pho_emb, self.singer_emb, self.f0_emb)
+            self.output = modules.full_network(self.pho_emb, self.singer_emb, self.f0_emb, self.is_train)
 
 
 def test():

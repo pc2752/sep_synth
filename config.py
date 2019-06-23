@@ -122,7 +122,7 @@ batches_per_epoch_train = 100
 batches_per_epoch_val = 10
 
 batch_size = 30
-samples_per_file = 30
+samples_per_file = 3
 max_phr_len = 512
 input_features = 513
 

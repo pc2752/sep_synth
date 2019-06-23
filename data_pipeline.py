@@ -198,15 +198,15 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                     if Flag:
                         pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
 
-            mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
+        mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
 
-            f0_targs = np.array(f0_targs)
+        f0_targs = np.array(f0_targs)
 
-            singer_targs = np.array(singer_targs)
+        singer_targs = np.array(singer_targs)
 
-            assert mix_in.max()<=1.0 and mix_in.min()>=0
+        assert mix_in.max()<=1.0 and mix_in.min()>=0
 
-            yield mix_in, np.array(pho_targs), f0_targs, singer_targs
+        yield mix_in, np.array(pho_targs), f0_targs, singer_targs
 
 
 def get_stats():
