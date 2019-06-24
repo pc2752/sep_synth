@@ -293,7 +293,7 @@ def decoder_conv_block(inputs, layer, layer_num, is_train, num_filters = config.
     deconv = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(deconv, num_filters * 2**int((config.encoder_layers -1 - layer_num)/2)
         , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num), kernel_initializer=tf.random_normal_initializer(stddev=0.02))), training = is_train)
 
-    deconv = tf.concat([deconv, layer], axis = -1)
+    # deconv = tf.concat([deconv, layer], axis = -1)
 
     return deconv
 

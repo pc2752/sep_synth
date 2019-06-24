@@ -11,7 +11,10 @@ def train(_):
     model = models.MultiSynth()
     model.train()
 
-    
+def eval_hdf5_file(file_name):
+    model = models.MultiSynth()
+    model.test_file(file_name)
+
 if __name__ == '__main__':
     if len(sys.argv)<2 or sys.argv[1] == '-help' or sys.argv[1] == '--help' or sys.argv[1] == '--h' or sys.argv[1] == '-h':
         print("%s --help or -h or --h or -help to see this menu" % sys.argv[0])
@@ -24,3 +27,17 @@ if __name__ == '__main__':
         if sys.argv[1] == '-train' or sys.argv[1] == '--train' or sys.argv[1] == '--t' or sys.argv[1] == '-t':
             print("Training")
             tf.app.run(main=train)
+
+        elif sys.argv[1] == '-e' or sys.argv[1] == '--e' or sys.argv[1] == '--eval' or sys.argv[1] == '-eval':
+            if len(sys.argv)<3:
+                print("Please give a file to evaluate")
+                print([x for x in os.listdir(config.voice_dir) if x.startswith('nus')])
+            else:
+                file_name = sys.argv[2]
+                if not file_name.endswith('.hdf5'):
+                    file_name = file_name+'.hdf5'
+                if not file_name in [x for x in os.listdir(config.voice_dir) if x.startswith('nus')]:
+                    print("Currently only supporting hdf5 files which are in the dataset, will be expanded later.")
+                    print([x for x in os.listdir(config.voice_dir) if x.startswith('nus')])
+                else:
+                    eval_hdf5_file(file_name)

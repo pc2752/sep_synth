@@ -52,7 +52,7 @@ filters = 32
 
 num_singers = 12
 num_phos = 42
-num_f0 = 256
+num_f0 = 176
 max_phr_len = 512
 input_features = 513
 output_features = 513

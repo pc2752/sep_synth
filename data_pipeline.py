@@ -8,6 +8,17 @@ import collections
 import config
 import utils
 
+from scipy.ndimage import filters
+
+
+def one_hotize(inp, max_index=41):
+
+
+    output = np.eye(max_index)[inp.astype(int)]
+
+    return output
+
+
 
 def gen_train_val():
     mix_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and x.startswith('med') ]
@@ -175,6 +186,9 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                 else: 
                     Flag = True
                     pho_target = np.array(voc_file["phonemes"])
+                    # phopho = one_hotize(pho_target)
+
+                    # import pdb;pdb.set_trace()
                     singer_name = voc_to_open.split('_')[1]
                     singer_index = config.singers.index(singer_name)
             else:
