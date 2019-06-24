@@ -186,9 +186,10 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                 else: 
                     Flag = True
                     pho_target = np.array(voc_file["phonemes"])
-                    # phopho = one_hotize(pho_target)
+                    phopho = one_hotize(pho_target)
 
-                    # import pdb;pdb.set_trace()
+                    phopho = filters.gaussian_filter1d(phopho, 10, axis=0, mode='constant')
+                    phopho[phopho>1] = 1
                     singer_name = voc_to_open.split('_')[1]
                     singer_index = config.singers.index(singer_name)
             else:
@@ -210,7 +211,7 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
 
                     if Flag:
-                        pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
+                        pho_targs.append(phopho[voc_idx:voc_idx+config.max_phr_len])
 
         mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
 

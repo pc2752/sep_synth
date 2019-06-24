@@ -395,7 +395,7 @@ class MultiSynth(Model):
 
 		self.pho_weights = tf.reduce_sum(config.phonemas_weights * self.phone_onehot_labels, axis=-1)
 
-		self.unweighted_losses = tf.nn.softmax_cross_entropy_with_logits(labels=self.phone_onehot_labels, logits = self.pho_logits)
+		self.unweighted_losses = tf.nn.softmax_cross_entropy_with_logits(labels=self.phoneme_labels_blur, logits = self.pho_logits)
 
 		self.weighted_losses = self.unweighted_losses * self.pho_weights
 
@@ -444,6 +444,9 @@ class MultiSynth(Model):
 
 		self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
 										   name='input_placeholder')
+
+		self.phoneme_labels_blur = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len, config.num_phos),
+										name='phoneme_blur_placeholder')
 
 		self.phoneme_labels = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len),
 										name='phoneme_placeholder')
