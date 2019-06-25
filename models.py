@@ -704,25 +704,27 @@ class MultiSynth(Model):
 
 		in_batches_stft, in_batches_f0, in_batches_pho, nchunks_in = self.read_input_file(file_name)
 
+		singer_name = file_name.split('_')[1]
+		singer_index = config.singers.index(singer_name)
+
 		out_batches_stft = []
 		out_batches_pho = []
-		for in_batch_stft, in_batch_f0 in zip(in_batches_stft, in_batches_f0):
-			feed_dict = {self.input_placeholder: in_batch_stft,self.f0_labels: in_batch_f0, self.is_train: False}
-			out_stft, out_pho = sess.run([self.output, self.pho_logits], feed_dict=feed_dict)
+		for in_batch_pho, in_batch_f0 in zip(in_batches_pho, in_batches_f0):
+			feed_dict = {self.phoneme_labels: in_batch_pho,self.f0_labels: in_batch_f0, self.singer_labels: np.ones(config.batch_size)*singer_index, self.is_train: False}
+			out_stft = sess.run(self.output, feed_dict=feed_dict)
 			out_batches_stft.append(out_stft)
-			out_batches_pho.append(out_pho)
 
 		out_batches_stft = np.array(out_batches_stft)
-		out_batches_pho = np.array(out_batches_pho)
+		# out_batches_pho = np.array(out_batches_pho)
 
 
-		out_batches_stft = utils.overlapadd(out_batches_stft,nchunks_in)
-		in_batches_stft = utils.overlapadd(in_batches_stft,nchunks_in)
+		# out_batches_stft = utils.overlapadd(out_batches_stft,nchunks_in)
+		# in_batches_stft = utils.overlapadd(in_batches_stft,nchunks_in)
 
-		out_batches_pho = utils.overlapadd(out_batches_pho,nchunks_in)
-		in_batches_pho = utils.overlapadd(np.expand_dims(in_batches_pho, -1),nchunks_in)		
+		# out_batches_pho = utils.overlapadd(out_batches_pho,nchunks_in)
+		output = utils.overlapadd(np.expand_dims(out_batches_stft, -1),nchunks_in)		
 
-		# import pdb;pdb.set_trace()
+		import pdb;pdb.set_trace()
 		plt.figure(1)
 		
 		ax1 = plt.subplot(211)
