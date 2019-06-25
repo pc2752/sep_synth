@@ -282,7 +282,9 @@ def wave_archi(inputs):
 
 def encoder_conv_block(inputs, layer_num, is_train, num_filters = config.filters):
 
-    output = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(inputs, num_filters * 2**int(layer_num/2), (2**(config.encoder_layers - layer_num),1)
+    # 2**(config.encoder_layers - layer_num)
+
+    output = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(inputs, num_filters * 2**int(layer_num/2), (config.filter_len,1)
         , strides=(4,1),  padding = 'same', name = "G_"+str(layer_num), kernel_initializer=tf.random_normal_initializer(stddev=0.02))), training = is_train)
     return output
 
