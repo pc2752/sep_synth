@@ -777,7 +777,7 @@ class MultiSynth(Model):
 			self.f0_probs = tf.nn.softmax(self.f0_logits)
 
 		with tf.variable_scope('Final_Model') as scope:
-			self.output = modules.full_network(self.pho_emb, self.singer_emb, self.f0_emb, self.is_train)
+			self.output = modules.full_network(self.phone_onehot_labels, self.singer_onehot_labels, self.f0_onehot_labels, self.is_train)
 
 
 def test():

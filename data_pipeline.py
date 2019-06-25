@@ -218,6 +218,13 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
                     mix_stft = vocals[int(voc_idx*config.hoptime*fs/1000): int((voc_idx+config.max_phr_len)*config.hoptime*fs/1000)]
                     # *np.clip(np.random.rand(1),0.5,0.9) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
+                    if len(mix_stft) >config.max_phr_len*2**8: 
+                        mix_stft = mix_stft[:config.max_phr_len*2**8]
+                    elif len(mix_stft) < config.max_phr_len*2**8: 
+                        ops = np.zeros(config.max_phr_len*2**8)
+                        ops[:len(mix_stft)] = mix_stft
+                        mix_stft = ops
+
                     mix_in.append(mix_stft)
 
                     f0_targs.append(f0_quant[voc_idx:voc_idx+config.max_phr_len])
@@ -236,10 +243,15 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
         singer_targs = np.array(singer_targs)
 
-        # import pdb;pdb.set_trace()
+        # if not mix_in.shape[0] == config.batch_size or not mix_in.shape[1] == config.max_phr_len*2**8 or len(mix_in.shape) != 2:
+        #     import pdb;pdb.set_trace()
 
-        assert mix_in.max()<=1.0 and mix_in.min()>=0
+        try:
 
+            assert mix_in.max()<=1.0 and mix_in.min()>=0
+
+        except:
+            import pdb;pdb.set_trace()
         yield mix_in, np.array(pho_targs), f0_targs, singer_targs
 
 
