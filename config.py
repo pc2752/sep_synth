@@ -14,7 +14,7 @@ wav_dir_vctk_lab = '../datasets/VCTK/VCTK_files/VCTK-Corpus/forPritish/'
 voice_dir = '../ss_synthesis/voice/'
 backing_dir = '../ss_synthesis/backing/'
 
-log_dir = './log/'
+log_dir = './log_wav/'
 
 
 data_log = './log/data_log.log'
@@ -47,7 +47,7 @@ def get_teacher_prob(epoch):
         return 0.55
 
 filter_len = 3
-encoder_layers = 9
+encoder_layers = 8
 filters = 32
 
 num_singers = 12
@@ -121,9 +121,9 @@ num_epochs = 2500
 batches_per_epoch_train = 100
 batches_per_epoch_val = 10
 
-batch_size = 30
+batch_size = 12
 samples_per_file = 3
-max_phr_len = 512
+max_phr_len = 128
 input_features = 513
 
 

@@ -442,7 +442,7 @@ class MultiSynth(Model):
 		Depending on the mode, can return placeholders for either just the generator or both the generator and discriminator.
 		"""
 
-		self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
+		self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len*2**8),
 										   name='input_placeholder')
 
 		self.phoneme_labels_blur = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len, config.num_phos),
@@ -761,7 +761,7 @@ class MultiSynth(Model):
 		"""
 
 		with tf.variable_scope('Singer_Model') as scope:
-			self.singer_emb, self.singer_logits = modules.singer_network(self.f0_onehot_labels, self.is_train)
+			self.singer_emb, self.singer_logits = modules.singer_network(self.input_placeholder, self.is_train)
 			self.singer_classes = tf.argmax(self.singer_logits, axis=-1)
 			self.singer_probs = tf.nn.softmax(self.singer_logits)
 
