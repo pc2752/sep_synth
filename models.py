@@ -395,7 +395,7 @@ class MultiSynth(Model):
 
 		self.pho_weights = tf.reduce_sum(config.phonemas_weights * self.phone_onehot_labels, axis=-1)
 
-		self.unweighted_losses = tf.nn.softmax_cross_entropy_with_logits(labels=self.phoneme_labels_blur, logits = self.pho_logits)
+		self.unweighted_losses = tf.nn.softmax_cross_entropy_with_logits(labels=self.phone_onehot_labels, logits = self.pho_logits)
 
 		self.weighted_losses = self.unweighted_losses * self.pho_weights
 
@@ -454,7 +454,7 @@ class MultiSynth(Model):
 		
 		self.f0_labels = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len),
 										name='f0_placeholder')
-		self.f0_onehot_labels = tf.one_hot(indices=tf.cast(self.phoneme_labels, tf.int32), depth = config.num_f0)
+		self.f0_onehot_labels = tf.one_hot(indices=tf.cast(self.f0_labels, tf.int32), depth = config.num_f0)
 
 		self.singer_labels = tf.placeholder(tf.float32, shape=(config.batch_size),name='singer_placeholder')
 		self.singer_onehot_labels = tf.one_hot(indices=tf.cast(self.singer_labels, tf.int32), depth = config.num_singers)
@@ -642,15 +642,54 @@ class MultiSynth(Model):
 		Currently, only the HDF5 version is implemented.
 		"""
 		# if file_name.endswith('.hdf5'):
+
+		stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
+		max_voc = np.array(stat_file["voc_stft_maximus"])
+		min_voc = np.array(stat_file["voc_stft_minimus"])
+
+		max_feat = np.array(stat_file["feats_maximus"])
+		min_feat = np.array(stat_file["feats_minimus"])
+
+		stat_file.close()
+		
 		feat_file = h5py.File(config.voice_dir + file_name)
 
 		voc_stft = np.array(feat_file['voc_stft'])[()]
 
+		feats = np.array(feat_file['feats'])
+
+		pho_target = np.array(feat_file["phonemes"])
+
+		f0 = feats[:,-2]
+
+		med = np.median(f0[f0 > 0])
+
+		f0[f0==0] = med
+
+		f0_nor = (f0 - min_feat[-2])/(max_feat[-2]-min_feat[-2])
+
+
+		f0_quant = np.rint(f0_nor*config.num_f0) + 1
+
+		f0_quant = f0_quant * (1-feats[:,-1]) 
+
 		feat_file.close()
 
 		in_batches_stft, nchunks_in = utils.generate_overlapadd(voc_stft)
+		
+		in_batches_stft = (np.array(in_batches_stft) - min_voc)/(max_voc - min_voc)
 
-		return in_batches_stft, nchunks_in
+
+
+		in_batches_f0, nchunks_in = utils.generate_overlapadd(np.expand_dims(f0_quant,-1))
+
+		in_batches_f0 = np.squeeze(in_batches_f0)
+
+		in_batches_pho, nchunks_in = utils.generate_overlapadd(np.expand_dims(pho_target,-1))
+
+		in_batches_pho = np.squeeze(in_batches_pho)
+
+		return in_batches_stft, in_batches_f0, in_batches_pho, nchunks_in
 
 	def test_file(self, file_name):
 		"""
@@ -662,20 +701,26 @@ class MultiSynth(Model):
 		return scores
 
 	def process_file(self, file_name, sess):
-		stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
-		max_voc = np.array(stat_file["voc_stft_maximus"])
-		min_voc = np.array(stat_file["voc_stft_minimus"])
-		stat_file.close()
-		in_batches_stft, nchunks_in = self.read_input_file(file_name)
-		in_batches_stft = (np.array(in_batches_stft) - min_voc)/(max_voc - min_voc)
+
+		in_batches_stft, in_batches_f0, in_batches_pho, nchunks_in = self.read_input_file(file_name)
+
 		out_batches_stft = []
-		for in_batch_stft in in_batches_stft:
-			feed_dict = {self.input_placeholder: in_batch_stft, self.is_train: False}
-			out_stft = sess.run(self.output, feed_dict=feed_dict)
+		out_batches_pho = []
+		for in_batch_stft, in_batch_f0 in zip(in_batches_stft, in_batches_f0):
+			feed_dict = {self.input_placeholder: in_batch_stft,self.f0_labels: in_batch_f0, self.is_train: False}
+			out_stft, out_pho = sess.run([self.output, self.pho_logits], feed_dict=feed_dict)
 			out_batches_stft.append(out_stft)
+			out_batches_pho.append(out_pho)
+
 		out_batches_stft = np.array(out_batches_stft)
+		out_batches_pho = np.array(out_batches_pho)
+
+
 		out_batches_stft = utils.overlapadd(out_batches_stft,nchunks_in)
 		in_batches_stft = utils.overlapadd(in_batches_stft,nchunks_in)
+
+		out_batches_pho = utils.overlapadd(out_batches_pho,nchunks_in)
+		in_batches_pho = utils.overlapadd(in_batches_pho,nchunks_in)		
 
 		# import pdb;pdb.set_trace()
 		plt.figure(1)
@@ -691,6 +736,20 @@ class MultiSynth(Model):
 		ax3.set_title("Output STFT", fontsize=10)
 
 		plt.imshow(np.log(out_batches_stft.T),aspect='auto',origin='lower')
+
+		plt.figure(2)
+		
+		ax1 = plt.subplot(211)
+
+		plt.imshow(in_batches_pho,aspect='auto',origin='lower')
+
+		ax1.set_title("Ground Truth Phonemes", fontsize=10)
+
+		ax3 =plt.subplot(212, sharex = ax1, sharey = ax1)
+
+		ax3.set_title("Output Phonemes", fontsize=10)
+
+		plt.imshow(out_batches_pho,aspect='auto',origin='lower')
 
 		plt.show()
 

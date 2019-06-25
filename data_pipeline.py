@@ -7,11 +7,12 @@ import matplotlib.pyplot as plt
 import collections
 import config
 import utils
+import soundfile as sf
 
 from scipy.ndimage import filters
 
 
-def one_hotize(inp, max_index=41):
+def one_hotize(inp, max_index=config.num_phos):
 
 
     output = np.eye(max_index)[inp.astype(int)]
@@ -177,7 +178,8 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
             f0_quant = np.rint(f0_nor*config.num_f0) + 1
 
             f0_quant = f0_quant * (1-feats[:,-1]) 
-
+# audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+voc_to_open.split('_')[2]+'/'+voc_to_open.split('_')[-1][:-4]+'wav')
+# audio_cut = audio[int(500*config.hoptime*fs/1000): int(1500*config.hoptime*fs/1000)]
 
             if voc_to_open.startswith('nus'):
                 if not  "phonemes" in voc_file:
@@ -188,10 +190,15 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                     pho_target = np.array(voc_file["phonemes"])
                     phopho = one_hotize(pho_target)
 
-                    phopho = filters.gaussian_filter1d(phopho, 10, axis=0, mode='constant')
-                    phopho[phopho>1] = 1
+
+
+                    # phopho = filters.gaussian_filter1d(phopho, 10, axis=0, mode='constant')
+                    # phopho[phopho>1] = 1
                     singer_name = voc_to_open.split('_')[1]
                     singer_index = config.singers.index(singer_name)
+                    # config.wav_dir_nus+singer_name+'/sing/'
+
+                    import pdb;pdb.set_trace()
             else:
                 Flag = False
 
@@ -211,7 +218,7 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
 
                     if Flag:
-                        pho_targs.append(phopho[voc_idx:voc_idx+config.max_phr_len])
+                        pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
 
         mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
 
