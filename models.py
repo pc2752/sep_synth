@@ -720,7 +720,7 @@ class MultiSynth(Model):
 		in_batches_stft = utils.overlapadd(in_batches_stft,nchunks_in)
 
 		out_batches_pho = utils.overlapadd(out_batches_pho,nchunks_in)
-		in_batches_pho = utils.overlapadd(in_batches_pho,nchunks_in)		
+		in_batches_pho = utils.overlapadd(np.expand_dims(in_batches_pho, -1),nchunks_in)		
 
 		# import pdb;pdb.set_trace()
 		plt.figure(1)

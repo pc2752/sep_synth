@@ -178,8 +178,7 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
             f0_quant = np.rint(f0_nor*config.num_f0) + 1
 
             f0_quant = f0_quant * (1-feats[:,-1]) 
-# audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+voc_to_open.split('_')[2]+'/'+voc_to_open.split('_')[-1][:-4]+'wav')
-# audio_cut = audio[int(500*config.hoptime*fs/1000): int(1500*config.hoptime*fs/1000)]
+
 
             if voc_to_open.startswith('nus'):
                 if not  "phonemes" in voc_file:
@@ -196,9 +195,16 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                     # phopho[phopho>1] = 1
                     singer_name = voc_to_open.split('_')[1]
                     singer_index = config.singers.index(singer_name)
+                    audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+voc_to_open.split('_')[2]+'/'+voc_to_open.split('_')[-1][:-4]+'wav')
+                    if len(audio.shape) == 2:
+                        vocals = np.array((audio[:,1]+audio[:,0])/2)
+
+                    else: 
+                        vocals = np.array(audio)
+                    
                     # config.wav_dir_nus+singer_name+'/sing/'
 
-                    import pdb;pdb.set_trace()
+                    # import pdb;pdb.set_trace()
             else:
                 Flag = False
 
@@ -208,7 +214,9 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
             for j in range(config.samples_per_file):
                     voc_idx = np.random.randint(0,len(voc_stft)-config.max_phr_len)
                     # bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
-                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]
+                    # mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]
+
+                    mix_stft = vocals[int(voc_idx*config.hoptime*fs/1000): int((voc_idx+config.max_phr_len)*config.hoptime*fs/1000)]
                     # *np.clip(np.random.rand(1),0.5,0.9) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
                     mix_in.append(mix_stft)
 
@@ -220,11 +228,15 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                     if Flag:
                         pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
 
-        mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
+        # mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
+
+        mix_in = (np.array(mix_in) + 1)/2
 
         f0_targs = np.array(f0_targs)
 
         singer_targs = np.array(singer_targs)
+
+        # import pdb;pdb.set_trace()
 
         assert mix_in.max()<=1.0 and mix_in.min()>=0
 
