@@ -285,7 +285,7 @@ def encoder_conv_block(inputs, layer_num, is_train, num_filters = config.filters
     # 2**(config.encoder_layers - layer_num)
 
     output = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(inputs, num_filters * 2**int(layer_num/2), (config.filter_len,1)
-        , strides=(4,1),  padding = 'same', name = "G_"+str(layer_num))), training = is_train)
+        , strides=(2,1),  padding = 'same', name = "G_"+str(layer_num))), training = is_train)
     return output
 
 def encoder_conv_block_full(inputs, layer_num, is_train, num_filters = config.filters):
@@ -301,7 +301,7 @@ def decoder_conv_block(inputs, layer, layer_num, is_train, num_filters = config.
     deconv = tf.image.resize_images(inputs, size=(int(config.max_phr_len/2**(config.encoder_layers - 1 - layer_num)),1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
     deconv = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(deconv, num_filters * 2**int((config.encoder_layers -1 - layer_num)/2)
-        , (config.filter_len_2,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num))), training = is_train)
+        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num))), training = is_train)
 
     # deconv = tf.concat([deconv, layer], axis = -1)
 
@@ -328,11 +328,8 @@ def encoder_decoder_archi(inputs, is_train):
     encoder_layers.append(encoded)
 
     for i in range(config.encoder_layers):
-        # import pdb;pdb.set_trace()
         encoded = encoder_conv_block(encoded, i, is_train)
         encoder_layers.append(encoded)
-
-    # import pdb;pdb.set_trace()
     
     encoder_layers.reverse()
 
@@ -340,8 +337,6 @@ def encoder_decoder_archi(inputs, is_train):
 
     for i in range(config.encoder_layers):
         decoded = decoder_conv_block(decoded, encoder_layers[i+1], i, is_train)
-
-    # import pdb;pdb.set_trace()
 
     return encoder_layers[0], decoded
 
@@ -351,10 +346,11 @@ def phone_network(inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len*2**8, 1, -1])
 
-    # import pdb;pdb.set_trace()
+    inputs = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(inputs, 513, (1024,1)
+        , strides=(256,1),  padding = 'same', name = "G_C")), training = is_train)
 
     inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
-        , name = "P_in", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train)
+        , name = "P_in"), training = is_train)
 
     embedding, output = encoder_decoder_archi(inputs, is_train)
 
@@ -367,6 +363,9 @@ def phone_network(inputs, is_train):
 def f0_network(inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len*2**8, 1, -1])
+
+    inputs = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(inputs, 513, (1024,1)
+        , strides=(256,1),  padding = 'same', name = "G_C")), training = is_train)
 
     inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
         , name = "F_in"), training = is_train)
@@ -383,6 +382,9 @@ def f0_network(inputs, is_train):
 def singer_network(inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len*2**8, 1, -1])
+
+    inputs = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(inputs, 513, (1024,1)
+        , strides=(256,1),  padding = 'same', name = "G_C")), training = is_train)
 
     inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters*2
         , name = "S_in"), training = is_train)
@@ -405,21 +407,15 @@ def full_network(ohonemes, singer_label, f0, is_train):
     inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
         , name = "S_in"), training = is_train)
 
-    encoded = inputs
+    _, output = encoder_decoder_archi(inputs, is_train)
 
-    for i in range(config.encoder_layers):
-        # import pdb;pdb.set_trace()
-        encoded = encoder_conv_block_full(encoded, i, is_train)
-        # encoder_layers.append(encoded)
+    output = tf.image.resize_images(output, size=(config.max_phr_len*2**8,1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
+    output = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(deconv, 513
+        , (256,1), strides=(1,1),  padding = 'same', name =  "D_S")), training = is_train)
 
 
-    decoded = encoded
-
-    for i in range(config.encoder_layers):
-        # import pdb;pdb.set_trace()
-        decoded = decoder_conv_block_full(decoded, i, is_train)
-
-    output = tf.layers.batch_normalization(tf.layers.dense(decoded, 1, name = "Fu_F"), training = is_train)
+    output = tf.layers.batch_normalization(tf.layers.dense(output, 1, name = "Fu_F"), training = is_train)
 
     return tf.squeeze(output)
 
@@ -429,18 +425,18 @@ def main():
     tec = np.random.rand(config.batch_size,config.max_phr_len*2**8, 1,1) #  batch_size, time_steps, features
     is_train = tf.placeholder(tf.bool, name="is_train")
     # seqlen = tf.placeholder("float", [config.batch_size, 256])
-    with tf.variable_scope('singer_Model') as scope:
-        emb_singer, outs_sing = singer_network(vec, is_train)
-    with tf.variable_scope('f0_Model') as scope:
-        emb_f0, outs_f0 = f0_network(vec, is_train)
+    # with tf.variable_scope('singer_Model') as scope:
+    #     emb_singer, outs_sing = singer_network(vec, is_train)
+    # with tf.variable_scope('f0_Model') as scope:
+    #     emb_f0, outs_f0 = f0_network(vec, is_train)
     with tf.variable_scope('phone_Model') as scope:
         emb_pho, outs_pho = phone_network(vec, is_train)
-    with tf.variable_scope('full_Model') as scope:
-        out_put = full_network(emb_singer, emb_f0, emb_pho, is_train)
+    # with tf.variable_scope('full_Model') as scope:
+    #     out_put = full_network(emb_singer, emb_f0, emb_pho, is_train)
     sess = tf.Session()
     init = tf.global_variables_initializer()
     sess.run(init)
-    op= sess.run(out_put, feed_dict={vec: tec, is_train: True})
+    op= sess.run(outs_pho, feed_dict={vec: tec, is_train: True})
     # writer = tf.summary.FileWriter('.')
     # writer.add_graph(tf.get_default_graph())
     # writer.add_summary(summary, global_step=1)

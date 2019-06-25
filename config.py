@@ -46,7 +46,7 @@ def get_teacher_prob(epoch):
     else:
         return 0.55
 
-filter_len = 70
+filter_len = 3
 filter_len_2 = 5
 encoder_layers = 8
 filters = 32
