@@ -10,6 +10,7 @@ import mir_eval
 import pandas as pd
 from random import randint
 import librosa
+import soundfile as sf
 # import sig_process
 import matplotlib.pyplot as plt
 from scipy.ndimage import filters
@@ -411,7 +412,8 @@ class MultiSynth(Model):
 
 		self.f0_acc = tf.metrics.accuracy(labels=self.f0_labels , predictions=self.f0_classes)
 
-		self.final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.input_placeholder, logits = self.output)) /(config.batch_size*config.max_phr_len*config.output_features)
+		self.final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.input_placeholder, logits = self.output)) 
+		# tf.reduce_sum(tf.abs(output_placeholder- (voc_output_2/2+0.5)))
 
 	def get_summary(self, sess, log_dir):
 		"""
@@ -711,7 +713,7 @@ class MultiSynth(Model):
 		out_batches_pho = []
 		for in_batch_pho, in_batch_f0 in zip(in_batches_pho, in_batches_f0):
 			feed_dict = {self.phoneme_labels: in_batch_pho,self.f0_labels: in_batch_f0, self.singer_labels: np.ones(config.batch_size)*singer_index, self.is_train: False}
-			out_stft = sess.run(self.output, feed_dict=feed_dict)
+			out_stft = sess.run(self.output_decoded, feed_dict=feed_dict)
 			out_batches_stft.append(out_stft)
 
 		out_batches_stft = np.array(out_batches_stft)
@@ -722,14 +724,18 @@ class MultiSynth(Model):
 		# in_batches_stft = utils.overlapadd(in_batches_stft,nchunks_in)
 
 		# out_batches_pho = utils.overlapadd(out_batches_pho,nchunks_in)
-		output = utils.overlapadd(np.expand_dims(out_batches_stft, -1),nchunks_in)		
+		output = utils.overlapadd(np.expand_dims(out_batches_stft, -1),nchunks_in, overlap = config.max_phr_len*2**7)	
 
-		import pdb;pdb.set_trace()
+		output = output * 2 -1 	
+
+		audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+file_name.split('_')[2]+'/'+file_name.split('_')[-1][:-4]+'wav')
+
+		# import pdb;pdb.set_trace()
 		plt.figure(1)
 		
 		ax1 = plt.subplot(211)
 
-		plt.imshow(np.log(in_batches_stft.T),aspect='auto',origin='lower')
+		plt.plot(output)
 
 		ax1.set_title("Ground Truth STFT", fontsize=10)
 
@@ -737,21 +743,8 @@ class MultiSynth(Model):
 
 		ax3.set_title("Output STFT", fontsize=10)
 
-		plt.imshow(np.log(out_batches_stft.T),aspect='auto',origin='lower')
+		plt.plot(audio)
 
-		plt.figure(2)
-		
-		ax1 = plt.subplot(211)
-
-		plt.imshow(in_batches_pho,aspect='auto',origin='lower')
-
-		ax1.set_title("Ground Truth Phonemes", fontsize=10)
-
-		ax3 =plt.subplot(212, sharex = ax1, sharey = ax1)
-
-		ax3.set_title("Output Phonemes", fontsize=10)
-
-		plt.imshow(out_batches_pho,aspect='auto',origin='lower')
 
 		plt.show()
 
@@ -780,6 +773,7 @@ class MultiSynth(Model):
 
 		with tf.variable_scope('Final_Model') as scope:
 			self.output = modules.full_network(self.phone_onehot_labels, self.singer_onehot_labels, self.f0_onehot_labels, self.is_train)
+			self.output_decoded = tf.nn.sigmoid(self.output)
 
 
 def test():
