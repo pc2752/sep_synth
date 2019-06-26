@@ -153,6 +153,8 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
         singer_targs = []
 
         mix_in = []
+
+        wav_out = []
         for i in range(max_files_to_process):
 
 
@@ -196,9 +198,12 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                     # phopho[phopho>1] = 1
                     singer_name = voc_to_open.split('_')[1]
                     singer_index = config.singers.index(singer_name)
-                    # config.wav_dir_nus+singer_name+'/sing/'
+                    audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+voc_to_open.split('_')[2]+'/'+voc_to_open.split('_')[-1][:-4]+'wav')
+                    if len(audio.shape) == 2:
+                        vocals = np.array((audio[:,1]+audio[:,0])/2)
 
-                    import pdb;pdb.set_trace()
+                    else: 
+                        vocals = np.array(audio)
             else:
                 Flag = False
 
@@ -212,23 +217,47 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                     # *np.clip(np.random.rand(1),0.5,0.9) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
                     mix_in.append(mix_stft)
 
+                    wave = vocals[int(voc_idx*config.hoptime*fs/1000): int((voc_idx+config.max_phr_len)*config.hoptime*fs/1000)]
+
+                    if len(wave) >config.max_phr_len*2**8: 
+                        wave = wave[:config.max_phr_len*2**8]
+                    elif len(wave) < config.max_phr_len*2**8: 
+                        ops = np.zeros(config.max_phr_len*2**8)
+                        ops[:len(wave)] = wave
+                        wave = ops
+
+                    wav_out.append(wave)
+
+
                     f0_targs.append(f0_quant[voc_idx:voc_idx+config.max_phr_len])
 
                     singer_targs.append(singer_index)
 
 
+
+
                     if Flag:
                         pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
 
+
         mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
 
+        wav_out = (np.array(wav_out) +1)/2
+
         f0_targs = np.array(f0_targs)
+
+        # f0_targs = one_hotize(f0_targs, max_index = config.num_f0)
+
+        pho_targs = np.array(pho_targs)
+
+        # f0_targs = one_hotize(f0_targs, max_index = config.num_f0)
+
 
         singer_targs = np.array(singer_targs)
 
         assert mix_in.max()<=1.0 and mix_in.min()>=0
 
-        yield mix_in, np.array(pho_targs), f0_targs, singer_targs
+        yield mix_in, wav_out, pho_targs, f0_targs, singer_targs
 
 
 def get_stats():

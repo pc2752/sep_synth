@@ -293,15 +293,15 @@ def decoder_conv_block(inputs, layer, layer_num, is_train, num_filters = config.
     deconv = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(deconv, num_filters * 2**int((config.encoder_layers -1 - layer_num)/2)
         , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num), kernel_initializer=tf.random_normal_initializer(stddev=0.02))), training = is_train)
 
-    # deconv = tf.concat([deconv, layer], axis = -1)
+    deconv = tf.concat([deconv, layer], axis = -1)
 
     return deconv
 
 def decoder_conv_block_full(inputs, layer_num, is_train, num_filters = config.filters):
 
-    deconv = tf.image.resize_images(inputs, size=(int(config.max_phr_len/2**(config.encoder_layers - 1 - layer_num)),1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+    deconv = tf.image.resize_images(inputs, size=(int(config.max_phr_len*2**8/2**(4 - 1 - layer_num)),1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
-    deconv = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(deconv, num_filters * 2**int((config.encoder_layers -1 - layer_num)/2)
+    deconv = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(deconv, num_filters
         , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_S"+str(layer_num), kernel_initializer=tf.random_normal_initializer(stddev=0.02))), training = is_train)
 
     return deconv
@@ -338,7 +338,7 @@ def phone_network(inputs, is_train):
 
     inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
         , name = "P_in", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train)
-
+ 
     embedding, output = encoder_decoder_archi(inputs, is_train)
 
     output = tf.layers.batch_normalization(tf.layers.dense(output, config.num_phos, name = "P_F"), training = is_train)
@@ -378,27 +378,54 @@ def singer_network(inputs, is_train):
     output = tf.layers.batch_normalization(tf.layers.dense(encoded, config.num_singers, name = "S_F"), training = is_train)
     return encoded, output
 
-def full_network(content_embedding, singer_embedding, f0_embedding, is_train):
+# def full_network(content_embedding, singer_embedding, f0_embedding, is_train):
 
-    inputs = tf.concat([content_embedding, singer_embedding, f0_embedding], axis = -1)
-    inputs = tf.reshape(inputs, [config.batch_size, 1, 1, -1])
+#     inputs = tf.concat([content_embedding, singer_embedding, f0_embedding], axis = -1)
+#     inputs = tf.reshape(inputs, [config.batch_size, 1, 1, -1])
 
-    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters*4
-        , name = "S_in", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train)
+#     inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters*4
+#         , name = "S_in"), training = is_train)
 
-    decoded = inputs
+#     decoded = inputs
 
-    for i in range(config.encoder_layers):
-        decoded = decoder_conv_block_full(decoded, i, is_train)
+#     for i in range(config.encoder_layers):
+#         decoded = decoder_conv_block_full(decoded, i, is_train)
 
-    output = tf.layers.batch_normalization(tf.layers.dense(decoded, config.output_features, name = "Fu_F"), training = is_train)
+#     output = tf.layers.batch_normalization(tf.layers.dense(decoded, config.output_features, name = "Fu_F"), training = is_train)
 
-    return tf.squeeze(output)
+#     return tf.squeeze(output)
 
+
+def full_network(ohonemes, singer_label, f0, is_train):
+
+    singer_label = tf.tile(tf.reshape(singer_label,[config.batch_size,1,-1]),[1,config.max_phr_len,1])
+
+    inputs = tf.concat([ohonemes, singer_label, f0], axis = -1)
+
+    inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len , 1, -1])
+
+    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.filters
+        , name = "S_in"), training = is_train)
+
+    encoded = inputs
+
+    _, output = encoder_decoder_archi(inputs, is_train)
+
+    output = tf.layers.batch_normalization(tf.layers.dense(output, config.output_features, name = "Fu_F"), training = is_train)
+
+    op_wav = tf.nn.sigmoid(output)
+
+    for i in range(4):
+        op_wav = decoder_conv_block_full(op_wav, i, is_train)
+
+    op_wav = tf.layers.batch_normalization(tf.layers.dense(op_wav,1, name = "Fu_W"), training = is_train)
+
+
+    return tf.squeeze(output), tf.squeeze(op_wav)
 
 def main():    
-    vec = tf.placeholder("float", [config.batch_size, config.max_phr_len,1, config.input_features])
-    tec = np.random.rand(config.batch_size, config.max_phr_len, 1,config.input_features) #  batch_size, time_steps, features
+    vec = tf.placeholder("float", [config.batch_size, config.max_phr_len, config.input_features])
+    tec = np.random.rand(config.batch_size, config.max_phr_len,config.input_features) #  batch_size, time_steps, features
     is_train = tf.placeholder(tf.bool, name="is_train")
     # seqlen = tf.placeholder("float", [config.batch_size, 256])
     with tf.variable_scope('singer_Model') as scope:
@@ -408,11 +435,11 @@ def main():
     with tf.variable_scope('phone_Model') as scope:
         emb_pho, outs_pho = phone_network(vec, is_train)
     with tf.variable_scope('full_Model') as scope:
-        out_put = full_network(emb_singer, emb_f0, emb_pho, is_train)
+        out_put = full_network(vec, emb_singer, vec, is_train)
     sess = tf.Session()
     init = tf.global_variables_initializer()
     sess.run(init)
-    op= sess.run(out_put, feed_dict={vec: tec, is_train: True})
+    op,op_wav= sess.run(out_put, feed_dict={vec: tec, is_train: True})
     # writer = tf.summary.FileWriter('.')
     # writer.add_graph(tf.get_default_graph())
     # writer.add_summary(summary, global_step=1)

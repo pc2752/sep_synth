@@ -11,6 +11,9 @@ import pandas as pd
 from random import randint
 import librosa
 # import sig_process
+
+import soundfile as sf
+
 import matplotlib.pyplot as plt
 from scipy.ndimage import filters
 
@@ -411,7 +414,7 @@ class MultiSynth(Model):
 
 		self.f0_acc = tf.metrics.accuracy(labels=self.f0_labels , predictions=self.f0_classes)
 
-		self.final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.input_placeholder, logits = self.output)) /(config.batch_size*config.max_phr_len*config.output_features)
+		self.final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.input_placeholder, logits = self.output)) + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.wave_placeholder, logits = self.output_wav))
 
 	def get_summary(self, sess, log_dir):
 		"""
@@ -461,6 +464,8 @@ class MultiSynth(Model):
 
 		self.is_train = tf.placeholder(tf.bool, name="is_train")
 
+		self.wave_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len*2**8),
+										   name='wave_placeholder')
 
 	def train(self):
 		"""
@@ -509,9 +514,9 @@ class MultiSynth(Model):
 			val_singer_acc = 0
 
 			with tf.variable_scope('Training'):
-				for mix_in, pho_targs, f0_targs, singer_targs in data_generator:
+				for mix_in, wav_out, pho_targs, f0_targs, singer_targs in data_generator:
 
-					final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc, summary_str = self.train_model(mix_in, pho_targs, f0_targs, singer_targs, sess)
+					final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc, summary_str = self.train_model(mix_in,wav_out, pho_targs, f0_targs, singer_targs, sess)
 
 					# import pdb;pdb.set_trace()
 
@@ -558,9 +563,9 @@ class MultiSynth(Model):
 			if (epoch + 1) % config.validate_every == 0:
 				batch_num = 0
 				with tf.variable_scope('Validation'):
-					for mix_in, pho_targs, f0_targs, singer_targs in val_generator:
+					for mix_in, wav_out, pho_targs, f0_targs, singer_targs in val_generator:
 
-						final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc, summary_str = self.validate_model(mix_in, pho_targs, f0_targs, singer_targs, sess)
+						final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc, summary_str = self.validate_model(mix_in, wav_out, pho_targs, f0_targs, singer_targs, sess)
 						val_final_loss+=final_loss
 
 						val_pho_loss+=pho_loss
@@ -606,11 +611,11 @@ class MultiSynth(Model):
 			if (epoch + 1) % config.save_every == 0 or (epoch + 1) == config.num_epochs:
 				self.save_model(sess, epoch+1, config.log_dir)
 
-	def train_model(self, mix_in, pho_targs, f0_targs, singer_targs, sess):
+	def train_model(self, mix_in, wav_out, pho_targs, f0_targs, singer_targs, sess):
 		"""
 		Function to train the model for each epoch
 		"""
-		feed_dict = {self.input_placeholder: mix_in, self.phoneme_labels: pho_targs, self.f0_labels: f0_targs, self.singer_labels: singer_targs, self.is_train: True}
+		feed_dict = {self.input_placeholder: mix_in, self.wave_placeholder: wav_out, self.phoneme_labels: pho_targs, self.f0_labels: f0_targs, self.singer_labels: singer_targs, self.is_train: True}
 
 		_, _, _, _, final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc = sess.run(
 			[self.f0_train_function,self.pho_train_function, self.singer_train_function, self.final_train_function, self.final_loss, self.pho_loss,
@@ -620,11 +625,11 @@ class MultiSynth(Model):
 
 		return final_loss, pho_loss, pho_acc[0],f0_loss, f0_acc[0], singer_loss, singer_acc[0],  summary_str
 
-	def validate_model(self,mix_in, pho_targs, f0_targs, singer_targs, sess):
+	def validate_model(self,mix_in,wav_out, pho_targs, f0_targs, singer_targs, sess):
 		"""
 		Function to train the model for each epoch
 		"""
-		feed_dict = {self.input_placeholder: mix_in, self.phoneme_labels: pho_targs, self.f0_labels: f0_targs, self.singer_labels: singer_targs, self.is_train: False}
+		feed_dict = {self.input_placeholder: mix_in, self.wave_placeholder: wav_out, self.phoneme_labels: pho_targs, self.f0_labels: f0_targs, self.singer_labels: singer_targs, self.is_train: False}
 
 		final_loss, pho_loss, pho_acc,f0_loss, f0_acc, singer_loss, singer_acc = sess.run(
 			[self.final_loss, self.pho_loss,
@@ -655,6 +660,8 @@ class MultiSynth(Model):
 		feat_file = h5py.File(config.voice_dir + file_name)
 
 		voc_stft = np.array(feat_file['voc_stft'])[()]
+
+		voc_stft_p = np.array(feat_file['voc_stft_phase'])[()]
 
 		feats = np.array(feat_file['feats'])
 
@@ -689,7 +696,7 @@ class MultiSynth(Model):
 
 		in_batches_pho = np.squeeze(in_batches_pho)
 
-		return in_batches_stft, in_batches_f0, in_batches_pho, nchunks_in
+		return in_batches_stft, in_batches_f0, in_batches_pho, nchunks_in, voc_stft_p
 
 	def test_file(self, file_name):
 		"""
@@ -702,13 +709,13 @@ class MultiSynth(Model):
 
 	def process_file(self, file_name, sess):
 
-		in_batches_stft, in_batches_f0, in_batches_pho, nchunks_in = self.read_input_file(file_name)
+		in_batches_stft, in_batches_f0, in_batches_pho, nchunks_in, voc_stft_p = self.read_input_file(file_name)
 
 		out_batches_stft = []
 		out_batches_pho = []
-		for in_batch_stft, in_batch_f0 in zip(in_batches_stft, in_batches_f0):
-			feed_dict = {self.input_placeholder: in_batch_stft,self.f0_labels: in_batch_f0, self.is_train: False}
-			out_stft, out_pho = sess.run([self.output, self.pho_logits], feed_dict=feed_dict)
+		for in_batch_stft, in_batch_f0, in_batch_pho in zip(in_batches_stft, in_batches_f0, in_batches_pho):
+			feed_dict = {self.input_placeholder: in_batch_stft,self.f0_labels: in_batch_f0,self.phoneme_labels:in_batch_pho, self.is_train: False}
+			out_stft, out_pho = sess.run([self.output_decoded, self.pho_logits], feed_dict=feed_dict)
 			out_batches_stft.append(out_stft)
 			out_batches_pho.append(out_pho)
 
@@ -720,7 +727,7 @@ class MultiSynth(Model):
 		in_batches_stft = utils.overlapadd(in_batches_stft,nchunks_in)
 
 		out_batches_pho = utils.overlapadd(out_batches_pho,nchunks_in)
-		in_batches_pho = utils.overlapadd(in_batches_pho,nchunks_in)		
+		# in_batches_pho = utils.overlapadd(in_batches_pho,nchunks_in)		
 
 		# import pdb;pdb.set_trace()
 		plt.figure(1)
@@ -737,21 +744,12 @@ class MultiSynth(Model):
 
 		plt.imshow(np.log(out_batches_stft.T),aspect='auto',origin='lower')
 
-		plt.figure(2)
-		
-		ax1 = plt.subplot(211)
-
-		plt.imshow(in_batches_pho,aspect='auto',origin='lower')
-
-		ax1.set_title("Ground Truth Phonemes", fontsize=10)
-
-		ax3 =plt.subplot(212, sharex = ax1, sharey = ax1)
-
-		ax3.set_title("Output Phonemes", fontsize=10)
-
-		plt.imshow(out_batches_pho,aspect='auto',origin='lower')
 
 		plt.show()
+
+		audio_out = utils.istft(out_batches_stft[:len(voc_stft_p)], voc_stft_p)
+
+		import pdb;pdb.set_trace()
 
 	def model(self):
 		"""
@@ -777,7 +775,9 @@ class MultiSynth(Model):
 			self.f0_probs = tf.nn.softmax(self.f0_logits)
 
 		with tf.variable_scope('Final_Model') as scope:
-			self.output = modules.full_network(self.pho_emb, self.singer_emb, self.f0_emb, self.is_train)
+			self.output, self.output_wav = modules.full_network(self.phone_onehot_labels, self.singer_onehot_labels, self.f0_onehot_labels, self.is_train)
+			self.output_decoded = tf.nn.sigmoid(self.output)
+
 
 
 def test():
