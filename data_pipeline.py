@@ -171,7 +171,7 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
             voc_stft = np.array(voc_file['voc_stft'])
 
-            voc_stft = voc_stft/voc_stft.max()
+            # voc_stft = voc_stft/voc_stft.max()
 
             singer_name = voc_to_open.split('_')[1]
             singer_index = config.singers.index(singer_name)
@@ -247,8 +247,8 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
 
 
-        # mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
-        mix_in = np.array(mix_in)
+        mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
+        # mix_in = np.array(mix_in)
 
         # import pdb;pdb.set_trace()
 

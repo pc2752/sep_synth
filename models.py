@@ -414,7 +414,8 @@ class MultiSynth(Model):
 
 		# self.f0_acc = tf.metrics.accuracy(labels=self.f0_labels , predictions=self.f0_classes)
 
-		self.final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.input_placeholder, logits = self.output)) 
+		self.final_loss = tf.reduce_sum(tf.abs(self.input_placeholder- self.output))
+		# tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.input_placeholder, logits = self.output)) 
 		# + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.wave_placeholder, logits = self.output_wav))
 
 	def get_summary(self, sess, log_dir):
@@ -517,7 +518,7 @@ class MultiSynth(Model):
 			with tf.variable_scope('Training'):
 				for mix_in, singer_targs in data_generator:
 
-					final_loss, singer_loss, singer_acc, summary_str = self.train_model(mix_in, singer_targs, sess)
+					final_loss, singer_loss, singer_acc, summary_str = self.train_model(mix_in, singer_targs, epoch, sess)
 
 					# import pdb;pdb.set_trace()
 
