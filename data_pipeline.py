@@ -118,6 +118,10 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
     mix_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[3] not in ['15.hdf5','20.hdf5'] and not x.startswith('nus_KENN_read')]
 
+    mix_list_med = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('med') and not x.split('_')[1] in ['MusicDelta', 'ClaraBerryAndWooldog','ClaraBerryAndWooldog','CelestialShore', 'Schumann', 'Mozart', 'NightPanther', 'Debussy', 'HeladoNegro']]
+
+    mix_list = mix_list+mix_list_med[:int(0.8*len(mix_list_med))]
+
     val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[3] in ['15.hdf5','20.hdf5']  and not x.startswith('nus_KENN_read')]
 
 
@@ -146,9 +150,9 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
 
     for k in range(num_batches):
-        pho_targs = []
+        # pho_targs = []
 
-        f0_targs = []
+        # f0_targs = []
 
         singer_targs = []
 
@@ -166,46 +170,47 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
 
             voc_stft = np.array(voc_file['voc_stft'])
-            feats = np.array(voc_file['feats'])
 
-            f0 = feats[:,-2]
+            voc_stft = voc_stft/voc_stft.max()
 
-            med = np.median(f0[f0 > 0])
+            singer_name = voc_to_open.split('_')[1]
+            singer_index = config.singers.index(singer_name)
+            # feats = np.array(voc_file['feats'])
 
-            f0[f0==0] = med
+            # f0 = feats[:,-2]
 
-            f0_nor = (f0 - min_feat[-2])/(max_feat[-2]-min_feat[-2])
+            # med = np.median(f0[f0 > 0])
+
+            # f0[f0==0] = med
+
+            # f0_nor = (f0 - min_feat[-2])/(max_feat[-2]-min_feat[-2])
 
 
-            f0_quant = np.rint(f0_nor*config.num_f0) + 1
+            # f0_quant = np.rint(f0_nor*config.num_f0) + 1
 
-            f0_quant = f0_quant * (1-feats[:,-1]) 
+            # f0_quant = f0_quant * (1-feats[:,-1]) 
 # audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+voc_to_open.split('_')[2]+'/'+voc_to_open.split('_')[-1][:-4]+'wav')
 # audio_cut = audio[int(500*config.hoptime*fs/1000): int(1500*config.hoptime*fs/1000)]
 
-            if voc_to_open.startswith('nus'):
-                if not  "phonemes" in voc_file:
-                    print(voc_file)
-                    Flag = False
-                else: 
-                    Flag = True
-                    pho_target = np.array(voc_file["phonemes"])
-                    phopho = one_hotize(pho_target)
-
-
-
+            # if voc_to_open.startswith('nus'):
+            #     if not  "phonemes" in voc_file:
+            #         print(voc_file)
+            #         Flag = False
+            #     else: 
+            #         Flag = True
+                    # pho_target = np.array(voc_file["phonemes"])
+                    # phopho = one_hotize(pho_target)
                     # phopho = filters.gaussian_filter1d(phopho, 10, axis=0, mode='constant')
                     # phopho[phopho>1] = 1
-                    singer_name = voc_to_open.split('_')[1]
-                    singer_index = config.singers.index(singer_name)
-                    audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+voc_to_open.split('_')[2]+'/'+voc_to_open.split('_')[-1][:-4]+'wav')
-                    if len(audio.shape) == 2:
-                        vocals = np.array((audio[:,1]+audio[:,0])/2)
 
-                    else: 
-                        vocals = np.array(audio)
-            else:
-                Flag = False
+                    # audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+voc_to_open.split('_')[2]+'/'+voc_to_open.split('_')[-1][:-4]+'wav')
+                    # if len(audio.shape) == 2:
+                    #     vocals = np.array((audio[:,1]+audio[:,0])/2)
+
+            #         # else: 
+            #         #     vocals = np.array(audio)
+            # else:
+            #     Flag = False
 
 
 
@@ -217,38 +222,43 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                     # *np.clip(np.random.rand(1),0.5,0.9) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
                     mix_in.append(mix_stft)
 
-                    wave = vocals[int(voc_idx*config.hoptime*fs/1000): int((voc_idx+config.max_phr_len)*config.hoptime*fs/1000)]
+                    # wave = vocals[int(voc_idx*config.hoptime*fs/1000): int((voc_idx+config.max_phr_len)*config.hoptime*fs/1000)]
 
-                    if len(wave) >config.max_phr_len*2**8: 
-                        wave = wave[:config.max_phr_len*2**8]
-                    elif len(wave) < config.max_phr_len*2**8: 
-                        ops = np.zeros(config.max_phr_len*2**8)
-                        ops[:len(wave)] = wave
-                        wave = ops
+                    # if len(wave) >config.max_phr_len*2**8: 
+                    #     wave = wave[:config.max_phr_len*2**8]
+                    # elif len(wave) < config.max_phr_len*2**8: 
+                    #     ops = np.zeros(config.max_phr_len*2**8)
+                    #     ops[:len(wave)] = wave
+                    #     wave = ops
 
-                    wav_out.append(wave)
+                    # wav_out.append(wave)
 
 
-                    f0_targs.append(f0_quant[voc_idx:voc_idx+config.max_phr_len])
+                    # f0_targs.append(f0_quant[voc_idx:voc_idx+config.max_phr_len])
 
                     singer_targs.append(singer_index)
 
 
 
 
-                    if Flag:
-                        pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
+                    # if Flag:
+                    #     pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
 
 
-        mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
 
-        wav_out = (np.array(wav_out) +1)/2
 
-        f0_targs = np.array(f0_targs)
+        # mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
+        mix_in = np.array(mix_in)
 
-        # f0_targs = one_hotize(f0_targs, max_index = config.num_f0)
+        # import pdb;pdb.set_trace()
 
-        pho_targs = np.array(pho_targs)
+        # wav_out = (np.array(wav_out) +1)/2
+
+        # f0_targs = np.array(f0_targs)
+
+        # # f0_targs = one_hotize(f0_targs, max_index = config.num_f0)
+
+        # pho_targs = np.array(pho_targs)
 
         # f0_targs = one_hotize(f0_targs, max_index = config.num_f0)
 
@@ -257,11 +267,11 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
         assert mix_in.max()<=1.0 and mix_in.min()>=0
 
-        yield mix_in, wav_out, pho_targs, f0_targs, singer_targs
+        yield mix_in, singer_targs
 
 
 def get_stats():
-    voc_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus')  and not x.startswith('nus_KENN_read') ]
+    voc_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') or x.startswith('med') and not x.startswith('nus_KENN_read') ]
 
     back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x.startswith('._') and not x.startswith('mir') and not x.startswith('med')]
 
@@ -389,7 +399,7 @@ def main():
     gen = data_gen_full('Train', sec_mode = 0)
     while True :
         start_time = time.time()
-        inputs, phos, f0, singer = next(gen)
+        inputs, singer = next(gen)
         print(time.time()-start_time)
 
     #     plt.subplot(411)
