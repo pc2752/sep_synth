@@ -14,7 +14,7 @@ wav_dir_vctk_lab = '../datasets/VCTK/VCTK_files/VCTK-Corpus/forPritish/'
 voice_dir = '../ss_synthesis/voice/'
 backing_dir = '../ss_synthesis/backing/'
 
-log_dir = './log/'
+log_dir = './log_voc/'
 
 
 data_log = './log/data_log.log'
@@ -46,16 +46,16 @@ def get_teacher_prob(epoch):
     else:
         return 0.55
 
-filter_len = 3
-encoder_layers = 8
+filter_len = 5
+encoder_layers = 9
 filters = 32
 
-num_singers = 52
+num_singers = 64
 num_phos = 42
 num_f0 = 256
-max_phr_len = 256
+max_phr_len = 512
 input_features = 513
-output_features = 513
+output_features = 64
 
 
 phonemas = ['t', 'y', 'l', 'k', 'aa', 'jh', 'ae', 'ng', 'ah', 'hh', 'z', 'ey', 'f', 'uw', 'iy', 'ay', 'b', 's', 'd', 'sil', 'p', 'n', 'sh', 'ao', 'g', 'ch', 'ih', 'eh', 'aw', 'sp', 'oy', 'th', 'w', 'ow', 'v', 'uh', 'm', 'er', 'zh', 'r', 'dh', 'ax']
@@ -101,7 +101,7 @@ phonemas_weights[38] = 1.0
 
 val_files = 30
 
-singers = ['ADIZ', 'JLEE', 'JTAN', 'KENN', 'MCUR', 'MPOL', 'MPUR', 'NJAT', 'PMAR', 'SAMF', 'VKOW' ,'ZHIY', 'StrandOfOaks', 'MatthewEntwistle', 'AimeeNorwich', 'BrandonWebster', 'LizNelson', 'ClaraBerryAndWooldog', 'LizNelson', 'AlexanderRoss', 'Grants', 'BigTroubles', 'PortStWillow', 'PurlingHiss', 'ClaraBerryAndWooldog', 'ClaraBerryAndWooldog', 'MatthewEntwistle', 'TheSoSoGlos', 'DreamersOfTheGhetto', 'Meaxic', 'Auctioneer', 'TheDistricts', 'AlexanderRoss', 'BrandonWebster', 'HopAlong', 'FamilyBand', 'Snowmine', 'FacesOnFilm', 'ClaraBerryAndWooldog', 'TheScarletBrand', 'ClaraBerryAndWooldog', 'Meaxic', 'AClassicEducation', 'Creepoid', 'AvaLuna', 'Lushlife', 'InvisibleFamiliars', 'SweetLights', 'SecretMountains', 'HezekiahJones', 'StevenClark', 'Wolf']
+singers = ['ADIZ', 'JLEE', 'JTAN', 'KENN', 'MCUR', 'MPOL', 'MPUR', 'NJAT', 'PMAR', 'SAMF', 'VKOW' ,'ZHIY', 'StrandOfOaks', 'MatthewEntwistle', 'AimeeNorwich', 'BrandonWebster', 'LizNelson', 'ClaraBerryAndWooldog', 'LizNelson', 'AlexanderRoss', 'Grants', 'BigTroubles', 'PortStWillow', 'PurlingHiss', 'ClaraBerryAndWooldog', 'ClaraBerryAndWooldog', 'MatthewEntwistle', 'TheSoSoGlos', 'DreamersOfTheGhetto', 'Meaxic', 'Auctioneer', 'TheDistricts', 'AlexanderRoss', 'BrandonWebster', 'HopAlong', 'FamilyBand', 'Snowmine', 'FacesOnFilm', 'ClaraBerryAndWooldog', 'TheScarletBrand', 'ClaraBerryAndWooldog', 'Meaxic', 'AClassicEducation', 'Creepoid', 'AvaLuna', 'Lushlife', 'InvisibleFamiliars', 'SweetLights', 'SecretMountains', 'HezekiahJones', 'StevenClark', 'Wolf','Miriam', 'Anna', 'Pau', 'Mar', 'Pol', 'Irene', 'Sara', 'JosepC', 'JosepT', 'Clara', 'Miguel', 'Miquel']
 # , 'p255', 'p285', 'p260', 'p247', 'p266', 'p364', 'p265', 'p233', 'p341', 'p347', 'p243', 'p300', 'p284', 'p283', 'p239', 'p269', 'p236', 'p281', 'p293', 'p241', 'p240', 'p259', 'p244', 'p271', 'p294', 'p287', 'p263', 'p261', 'p334', 'p323', 'p227', 'p282', 'p313', 'p248', 'p277', 'p297', 'p314', 'p250', 'p335', 'p374', 'p315', 'p304', 'p298', 'p288', 'p234', 'p310', 'p262', 'p329', 'p251', 'p330', 'p339', 'p312', 'p256', 'p258', 'p231', 'p249', 'p317', 'p301', 'p292', 'p306', 'p360', 'p272', 'p316', 'p311', 'p308', 'p318', 'p229', 'p245', 'p361', 'p232', 'p257', 'p264', 'p237', 'p226', 'p246', 'p351', 'p270', 'p228', 'p286', 'p267', 'p376', 'p333', 'p252', 'p253', 'p345', 'p254', 'p278', 'p336', 'p268', 'p363', 'p326', 'p303', 'p362', 'p295', 'p274', 'p273', 'p305', 'p343', 'p276', 'p275', 'p225', 'p238', 'p302', 'p279', 'p307', 'p299', 'p340', 'p280', 'p230']
 
 

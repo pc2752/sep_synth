@@ -419,11 +419,11 @@ def singer_network(inputs, is_train):
 #     return tf.squeeze(output)
 
 
-def full_network(inputs, singer_label, is_train):
+def full_network(inputs, f0, singer_label, is_train):
 
     # singer_label = tf.tile(tf.reshape(singer_label,[config.batch_size,1,-1]),[1,config.max_phr_len,1])
 
-    # inputs = tf.concat([inputs, singer_label], axis = -1)
+    inputs = tf.concat([inputs, f0], axis = -1)
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len , 1, -1])
 
@@ -435,14 +435,6 @@ def full_network(inputs, singer_label, is_train):
     _, output = encoder_decoder_archi_full(inputs, singer_label, is_train)
 
     output = tf.layers.batch_normalization(tf.layers.dense(output, config.output_features, name = "Fu_F"), training = is_train)
-
-    # op_wav = tf.nn.sigmoid(output)
-
-    # for i in range(4):
-    #     op_wav = decoder_conv_block_full(op_wav, i, is_train)
-
-    # op_wav = tf.layers.batch_normalization(tf.layers.dense(op_wav,1, name = "Fu_W"), training = is_train)
-
 
     return tf.squeeze(output)
 
