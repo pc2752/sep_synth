@@ -688,31 +688,24 @@ class MultiSynth(Model):
 
 		feat_file.close()
 
-		in_batches_stft, nchunks_in = utils.generate_overlapadd(voc_stft)
-		
 
-
-
-		in_batches_f0, nchunks_in = utils.generate_overlapadd(np.expand_dims(f0_quant,-1))
-
-		in_batches_f0 = np.squeeze(in_batches_f0)
 
 		# in_batches_pho, nchunks_in = utils.generate_overlapadd(np.expand_dims(pho_target,-1))
 
 		# in_batches_pho = np.squeeze(in_batches_pho)
 
-		return in_batches_stft, nchunks_in,  feats, in_batches_f0
+		return voc_stft, feats, f0_quant
 
-	def test_file(self, file_name):
+	def test_file(self, file_name, file_name_singer):
 		"""
 		Function to extract multi pitch from file. Currently supports only HDF5 files.
 		"""
 		sess = tf.Session()
 		self.load_model(sess, log_dir = config.log_dir)
-		scores = self.process_file(file_name, sess)
+		scores = self.process_file(file_name, file_name_singer, sess)
 		return scores
 
-	def process_file(self, file_name, sess):
+	def process_file(self, file_name, file_name_singer, sess):
 
 		stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
 
@@ -722,17 +715,35 @@ class MultiSynth(Model):
 		max_feat = np.array(stat_file["feats_maximus"])
 		min_feat = np.array(stat_file["feats_minimus"])
 		stat_file.close()
-		in_batches_stft,  nchunks_in, feats, in_batches_f0 = self.read_input_file(file_name)
+
+		voc_stft, feats, f0_quant = self.read_input_file(file_name)
+
+		voc_stft_singer, feats_singer, f0_quant_singer = self.read_input_file(file_name_singer)
+
+		if len(voc_stft)>len(voc_stft_singer):
+			voc_stft = voc_stft[:len(voc_stft_singer)]
+		else:
+			voc_stft_singer = voc_stft_singer[:len(voc_stft)]
+
+		in_batches_stft, nchunks_in = utils.generate_overlapadd(voc_stft)
+
+		in_batches_stft_singer, nchunks_in_singer = utils.generate_overlapadd(voc_stft)
+
+		in_batches_f0, nchunks_in = utils.generate_overlapadd(np.expand_dims(f0_quant,-1))
+
+		in_batches_f0 = np.squeeze(in_batches_f0)
 
 		in_batches_stft = (np.array(in_batches_stft) - min_voc)/(max_voc - min_voc)
+
+		in_batches_stft_singer = (np.array(in_batches_stft_singer) - min_voc)/(max_voc - min_voc)
 
 		singer_name = file_name.split('_')[1]
 		singer_index = config.singers.index(singer_name)
 
 		out_batches_stft = []
 		out_batches_wav = []
-		for in_batch_stft, in_batch_f0 in zip(in_batches_stft,in_batches_f0) :
-			feed_dict = {self.input_placeholder: in_batch_stft, self.singer_labels: np.ones(config.batch_size)*singer_index, self.f0_labels: in_batch_f0, self.is_train: False}
+		for in_batch_stft, in_batch_stft_singer, in_batch_f0 in zip(in_batches_stft, in_batches_stft_singer, in_batches_f0) :
+			feed_dict = {self.input_placeholder: in_batch_stft,self.input_placeholder_singer: in_batch_stft_singer, self.singer_labels: np.ones(config.batch_size)*singer_index, self.f0_labels: in_batch_f0, self.is_train: False}
 			out_stft = sess.run(self.output_decoded, feed_dict=feed_dict)
 			out_batches_stft.append(out_stft)
 			# out_batches_wav.append(out_wav)

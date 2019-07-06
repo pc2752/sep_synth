@@ -11,9 +11,9 @@ def train(_):
     model = models.MultiSynth()
     model.train()
 
-def eval_hdf5_file(file_name):
+def eval_hdf5_file(file_name, file_name_singer):
     model = models.MultiSynth()
-    model.test_file(file_name)
+    model.test_file(file_name, file_name_singer)
 
 if __name__ == '__main__':
     if len(sys.argv)<2 or sys.argv[1] == '-help' or sys.argv[1] == '--help' or sys.argv[1] == '--h' or sys.argv[1] == '-h':
@@ -40,4 +40,14 @@ if __name__ == '__main__':
                     print("Currently only supporting hdf5 files which are in the dataset, will be expanded later.")
                     print([x for x in os.listdir(config.voice_dir) if x.startswith('nus' )or x.startswith('casas') or x.startswith('med')])
                 else:
-                    eval_hdf5_file(file_name)
+                    if len(sys.argv)<4:
+                        print("Synthesizing with same singer.")
+                        eval_hdf5_file(file_name, file_name)
+                    else:
+                        file_name_singer = sys.argv[3]
+                        if not file_name_singer in [x for x in os.listdir(config.voice_dir) if x.startswith('nus') or x.startswith('casas') or x.startswith('med')]:
+                            print("Currently only supporting hdf5 files which are in the dataset, will be expanded later.")
+                            print([x for x in os.listdir(config.voice_dir) if x.startswith('nus' )or x.startswith('casas') or x.startswith('med')])
+                        else:
+                            print("Synthesizing second singer.")
+                            eval_hdf5_file(file_name, file_name_singer)
