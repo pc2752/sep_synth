@@ -451,6 +451,9 @@ class MultiSynth(Model):
 		self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
 										   name='input_placeholder')
 
+		self.input_placeholder_singer = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
+										   name='input_placeholder_singer')
+
 		self.output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.output_features),
 										   name='output_placeholder')		
 
@@ -615,7 +618,7 @@ class MultiSynth(Model):
 		"""
 		Function to train the model for each epoch
 		"""
-		feed_dict = {self.input_placeholder: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.is_train: True}
+		feed_dict = {self.input_placeholder: mix_in,self.input_placeholder_singer: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.is_train: True}
 
 		if epoch<300:
 
@@ -633,7 +636,7 @@ class MultiSynth(Model):
 		"""
 		Function to train the model for each epoch
 		"""
-		feed_dict = {self.input_placeholder: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.is_train: False}
+		feed_dict = {self.input_placeholder: mix_in, self.input_placeholder_singer: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.is_train: False}
 
 		final_loss,  singer_loss, singer_acc = sess.run(
 			[self.final_loss, self.singer_loss, self.singer_acc], feed_dict=feed_dict)
@@ -651,16 +654,24 @@ class MultiSynth(Model):
 		Currently, only the HDF5 version is implemented.
 		"""
 		# if file_name.endswith('.hdf5'):
+		stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
+
+		max_voc = np.array(stat_file["voc_stft_maximus"])
+		min_voc = np.array(stat_file["voc_stft_minimus"])
+
+		max_feat = np.array(stat_file["feats_maximus"])
+		min_feat = np.array(stat_file["feats_minimus"])
+		stat_file.close()
 
 		feat_file = h5py.File(config.voice_dir + file_name)
 
 		voc_stft = np.array(feat_file['voc_stft'])[()]
 
-		voc_stft_p = np.array(feat_file['voc_stft_phase'])[()]
+		# voc_stft_p = np.array(feat_file['voc_stft_phase'])[()]
 
 		feats = np.array(feat_file['feats'])
 
-		pho_target = np.array(feat_file["phonemes"])
+		# pho_target = np.array(feat_file["phonemes"])
 
 		f0 = feats[:,-2]
 
@@ -668,30 +679,29 @@ class MultiSynth(Model):
 
 		f0[f0==0] = med
 
-		# f0_nor = (f0 - min_feat[-2])/(max_feat[-2]-min_feat[-2])
+		f0_nor = (f0 - min_feat[-2])/(max_feat[-2]-min_feat[-2])
 
 
-		# f0_quant = np.rint(f0_nor*config.num_f0) + 1
+		f0_quant = np.rint(f0_nor*config.num_f0) + 1
 
-		# f0_quant = f0_quant * (1-feats[:,-1]) 
+		f0_quant = f0_quant * (1-feats[:,-1]) 
 
 		feat_file.close()
 
 		in_batches_stft, nchunks_in = utils.generate_overlapadd(voc_stft)
 		
-		
 
 
 
-		# in_batches_f0, nchunks_in = utils.generate_overlapadd(np.expand_dims(f0_quant,-1))
+		in_batches_f0, nchunks_in = utils.generate_overlapadd(np.expand_dims(f0_quant,-1))
 
-		# in_batches_f0 = np.squeeze(in_batches_f0)
+		in_batches_f0 = np.squeeze(in_batches_f0)
 
 		# in_batches_pho, nchunks_in = utils.generate_overlapadd(np.expand_dims(pho_target,-1))
 
 		# in_batches_pho = np.squeeze(in_batches_pho)
 
-		return in_batches_stft, nchunks_in, voc_stft_p
+		return in_batches_stft, nchunks_in,  feats, in_batches_f0
 
 	def test_file(self, file_name):
 		"""
@@ -712,7 +722,7 @@ class MultiSynth(Model):
 		max_feat = np.array(stat_file["feats_maximus"])
 		min_feat = np.array(stat_file["feats_minimus"])
 		stat_file.close()
-		in_batches_stft,  nchunks_in, voc_stft_p = self.read_input_file(file_name)
+		in_batches_stft,  nchunks_in, feats, in_batches_f0 = self.read_input_file(file_name)
 
 		in_batches_stft = (np.array(in_batches_stft) - min_voc)/(max_voc - min_voc)
 
@@ -721,8 +731,8 @@ class MultiSynth(Model):
 
 		out_batches_stft = []
 		out_batches_wav = []
-		for in_batch_stft in in_batches_stft:
-			feed_dict = {self.input_placeholder: in_batch_stft, self.singer_labels: np.ones(config.batch_size)*singer_index, self.is_train: False}
+		for in_batch_stft, in_batch_f0 in zip(in_batches_stft,in_batches_f0) :
+			feed_dict = {self.input_placeholder: in_batch_stft, self.singer_labels: np.ones(config.batch_size)*singer_index, self.f0_labels: in_batch_f0, self.is_train: False}
 			out_stft = sess.run(self.output_decoded, feed_dict=feed_dict)
 			out_batches_stft.append(out_stft)
 			# out_batches_wav.append(out_wav)
@@ -740,7 +750,7 @@ class MultiSynth(Model):
 
 		# out_batches_wav = out_batches_wav *2 -1
 
-		out_batches_stft = out_batches_stft*(max_voc - min_voc) + min_voc
+		out_batches_stft = out_batches_stft*(max_feat[:-2] - min_feat[:-2]) + min_feat[:-2]
 
 		# audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+file_name.split('_')[2]+'/'+file_name.split('_')[-1][:-4]+'wav')
 
@@ -751,7 +761,7 @@ class MultiSynth(Model):
 		
 		ax1 = plt.subplot(211)
 
-		plt.imshow(np.log(in_batches_stft.T),aspect='auto',origin='lower')
+		plt.imshow(feats[:,:-2].T,aspect='auto',origin='lower')
 
 		ax1.set_title("Ground Truth STFT", fontsize=10)
 
@@ -759,7 +769,7 @@ class MultiSynth(Model):
 
 		ax3.set_title("Output STFT", fontsize=10)
 
-		plt.imshow(np.log(out_batches_stft.T),aspect='auto',origin='lower')
+		plt.imshow(out_batches_stft.T,aspect='auto',origin='lower')
 
 		# plt.figure(2)
 		
@@ -777,10 +787,14 @@ class MultiSynth(Model):
 
 
 		plt.show()
-		
-		audio_out = utils.istft(out_batches_stft[:len(voc_stft_p)], voc_stft_p)
 
-		sf.write('./test_2.wav', audio_out, config.fs)
+		out_featss = np.concatenate((out_batches_stft[:feats.shape[0]], feats[:,-2:]), axis = -1)
+
+		utils.feats_to_audio(out_featss,file_name[:-4]+'gan_op.wav') 
+		
+		# audio_out = utils.istft(out_batches_stft[:len(voc_stft_p)], voc_stft_p)
+
+		# sf.write('./test_2.wav', audio_out, config.fs)
 
 		import pdb;pdb.set_trace()
 
@@ -792,7 +806,7 @@ class MultiSynth(Model):
 		"""
 
 		with tf.variable_scope('Singer_Model') as scope:
-			self.singer_emb, self.singer_logits = modules.singer_network(self.input_placeholder, self.is_train)
+			self.singer_emb, self.singer_logits = modules.singer_network(self.input_placeholder_singer, self.is_train)
 			self.singer_classes = tf.argmax(self.singer_logits, axis=-1)
 			self.singer_probs = tf.nn.softmax(self.singer_logits)
 

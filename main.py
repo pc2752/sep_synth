@@ -31,13 +31,13 @@ if __name__ == '__main__':
         elif sys.argv[1] == '-e' or sys.argv[1] == '--e' or sys.argv[1] == '--eval' or sys.argv[1] == '-eval':
             if len(sys.argv)<3:
                 print("Please give a file to evaluate")
-                print([x for x in os.listdir(config.voice_dir) if x.startswith('nus')])
+                print([x for x in os.listdir(config.voice_dir) if x.startswith('nus') or x.startswith('casas') or x.startswith('med')])
             else:
                 file_name = sys.argv[2]
                 if not file_name.endswith('.hdf5'):
                     file_name = file_name+'.hdf5'
-                if not file_name in [x for x in os.listdir(config.voice_dir) if x.startswith('nus')]:
+                if not file_name in [x for x in os.listdir(config.voice_dir) if x.startswith('nus') or x.startswith('casas') or x.startswith('med')]:
                     print("Currently only supporting hdf5 files which are in the dataset, will be expanded later.")
-                    print([x for x in os.listdir(config.voice_dir) if x.startswith('nus')])
+                    print([x for x in os.listdir(config.voice_dir) if x.startswith('nus' )or x.startswith('casas') or x.startswith('med')])
                 else:
                     eval_hdf5_file(file_name)
