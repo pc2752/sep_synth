@@ -286,27 +286,19 @@ def encoder_conv_block(inputs, layer_num, is_train, num_filters = config.filters
         , strides=(2,1),  padding = 'same', name = "G_"+str(layer_num))), training = is_train)
     return output
 
-def decoder_conv_block(inputs, layer, embedding, layer_num, is_train, num_filters = config.filters):
+def decoder_conv_block(inputs, layer, layer_num, is_train, num_filters = config.filters):
 
     deconv = tf.image.resize_images(inputs, size=(int(config.max_phr_len/2**(config.encoder_layers - 1 - layer_num)),1), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
 
-    embedding = tf.tile(embedding,[1,int(config.max_phr_len/2**(config.encoder_layers - 1 - layer_num)),1,1])
+    # embedding = tf.tile(embedding,[1,int(config.max_phr_len/2**(config.encoder_layers - 1 - layer_num)),1,1])
 
-    deconv = tf.nn.relu(tf.layers.conv2d(deconv, layer.shape[-1]
-        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num)))
+    deconv = tf.layers.batch_normalization( tf.nn.relu(tf.layers.conv2d(deconv, layer.shape[-1]
+        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num))), training = is_train)
 
-    embedding =tf.nn.relu(tf.layers.conv2d(embedding, layer.shape[-1]
-        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "DEnc_"+str(layer_num)))
+    # embedding =tf.nn.relu(tf.layers.conv2d(embedding, layer.shape[-1]
+    #     , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "DEnc_"+str(layer_num)))
 
-    deconv = tf.layers.batch_normalization( deconv + layer + embedding, training = is_train)
-
-    # print(deconv.shape)
-
-
-
-    # import pdb;pdb.set_trace()
-
-    # deconv = tf.concat([deconv, layer], axis = -1) 
+    deconv =  tf.concat([deconv, layer], axis = -1)
 
     return deconv
 
@@ -347,7 +339,7 @@ def encoder_decoder_archi(inputs, is_train):
 
     return encoder_layers[0], decoded
 
-def encoder_decoder_archi_full(inputs,embedding, is_train):
+def encoder_decoder_archi_full(inputs, is_train):
     """
     Input is assumed to be a 4-D Tensor, with [batch_size, phrase_len, 1, features]
     """
@@ -358,21 +350,18 @@ def encoder_decoder_archi_full(inputs,embedding, is_train):
 
     encoder_layers.append(encoded)
 
-    embedding = tf.reshape(embedding, [config.batch_size, 1, 1, -1])
+    # embedding = tf.reshape(embedding, [config.batch_size, 1, 1, -1])
 
     for i in range(config.encoder_layers):
         encoded = encoder_conv_block(encoded, i, is_train)
         encoder_layers.append(encoded)
     
     encoder_layers.reverse()
-    # for layer in encoder_layers:
-    #     print(layer.shape)
-    # decoded = tf.concat([encoder_layers[0], tf.reshape(embedding, [config.batch_size, 1, 1, -1])], axis = -1)
 
-    decoded = encoder_layers[0] + embedding
+    decoded = encoder_layers[0] 
 
     for i in range(config.encoder_layers):
-        decoded = decoder_conv_block(decoded, encoder_layers[i+1], embedding, i, is_train)
+        decoded = decoder_conv_block(decoded, encoder_layers[i+1], i, is_train)
 
     # import pdb;pdb.set_trace()
 
@@ -392,7 +381,7 @@ def phone_network(inputs, is_train):
 
     output = tf.squeeze(output)
 
-    return tf.squeeze(embedding), output
+    return output
 
 def f0_network(inputs, is_train):
 
@@ -408,7 +397,7 @@ def f0_network(inputs, is_train):
     output = tf.squeeze(output)
 
 
-    return tf.squeeze(embedding), output
+    return output
 
 def singer_network(inputs, is_train):
 
@@ -443,11 +432,11 @@ def singer_network(inputs, is_train):
 #     return tf.squeeze(output)
 
 
-def full_network(inputs, f0, singer_label, is_train):
+def full_network(inputs, f0, phos,  singer_label, is_train):
 
-    # singer_label = tf.tile(tf.reshape(singer_label,[config.batch_size,1,-1]),[1,config.max_phr_len,1])
+    singer_label = tf.tile(tf.reshape(singer_label,[config.batch_size,1,-1]),[1,config.max_phr_len,1])
 
-    inputs = tf.concat([inputs, f0], axis = -1)
+    inputs = tf.concat([inputs, f0, phos,singer_label], axis = -1)
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len , 1, -1])
 
@@ -456,7 +445,7 @@ def full_network(inputs, f0, singer_label, is_train):
 
     # encoded = inputs
 
-    _, output = encoder_decoder_archi_full(inputs, singer_label, is_train)
+    _, output = encoder_decoder_archi_full(inputs, is_train)
 
     output = tf.layers.batch_normalization(tf.layers.dense(output, config.output_features, name = "Fu_F"), training = is_train)
 

@@ -368,15 +368,15 @@ class MultiSynth(Model):
 		Returns the optimizers for the model, based on the loss functions and the mode. 
 		"""
 
-		# self.pho_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Phone_Model')
+		self.pho_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Phone_Model')
 		self.singer_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Singer_Model')
-		# self.f0_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'F0_Model')
+		self.f0_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'F0_Model')
 		self.final_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Final_Model')
 
-		# self.pho_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
+		self.pho_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
 		self.final_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
 		self.singer_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
-		# self.f0_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
+		self.f0_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
 
 		self.global_step = tf.Variable(0, name='global_step', trainable=False)
 		self.global_step_pho = tf.Variable(0, name='pho_global_step', trainable=False)
@@ -387,8 +387,8 @@ class MultiSynth(Model):
 		update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 		with tf.control_dependencies(update_ops):
 			self.final_train_function = self.final_optimizer.minimize(self.final_loss, global_step = self.global_step, var_list = self.final_params)
-			# self.pho_train_function = self.pho_optimizer.minimize(self.pho_loss, global_step = self.global_step_pho, var_list = self.pho_params)
-			# self.f0_train_function = self.f0_optimizer.minimize(self.f0_loss, global_step = self.global_step_f0, var_list = self.f0_params)
+			self.pho_train_function = self.pho_optimizer.minimize(self.pho_loss, global_step = self.global_step_pho, var_list = self.pho_params)
+			self.f0_train_function = self.f0_optimizer.minimize(self.f0_loss, global_step = self.global_step_f0, var_list = self.f0_params)
 			self.singer_train_function = self.singer_optimizer.minimize(self.singer_loss, global_step = self.global_step_singer, var_list = self.singer_params)
 
 	def loss_function(self):
@@ -402,17 +402,17 @@ class MultiSynth(Model):
 
 		# self.weighted_losses = self.unweighted_losses * self.pho_weights
 
-		# self.pho_loss = tf.reduce_mean(self.weighted_losses)
+		self.pho_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.phone_onehot_labels, logits = self.pho_logits))
 
-		# self.pho_acc = tf.metrics.accuracy(labels = self.phoneme_labels, predictions = self.pho_classes)
+		self.pho_acc = tf.metrics.accuracy(labels = self.phoneme_labels, predictions = self.pho_classes)
 
 		self.singer_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.singer_onehot_labels, logits=self.singer_logits))
 
 		self.singer_acc = tf.metrics.accuracy(labels=self.singer_labels , predictions=self.singer_classes)
 
-		# self.f0_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.f0_onehot_labels, logits=self.f0_logits))
+		self.f0_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.f0_onehot_labels, logits=self.f0_logits))
 
-		# self.f0_acc = tf.metrics.accuracy(labels=self.f0_labels , predictions=self.f0_classes)
+		self.f0_acc = tf.metrics.accuracy(labels=self.f0_labels , predictions=self.f0_classes)
 
 		self.final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.output_placeholder, logits = self.output)) 
 		# tf.reduce_sum(tf.abs(self.input_placeholder- self.output))
@@ -424,15 +424,15 @@ class MultiSynth(Model):
 		Gets the summaries and summary writers for the losses.
 		"""
 
-		# self.pho_summary = tf.summary.scalar('pho_loss', self.pho_loss)
+		self.pho_summary = tf.summary.scalar('pho_loss', self.pho_loss)
 
-		# self.pho_acc_summary = tf.summary.scalar('pho_accuracy', self.pho_acc[0])
+		self.pho_acc_summary = tf.summary.scalar('pho_accuracy', self.pho_acc[0])
 
 		self.final_summary = tf.summary.scalar('final_loss', self.final_loss)
 
-		# self.f0_summary = tf.summary.scalar('f0_loss', self.f0_loss)
+		self.f0_summary = tf.summary.scalar('f0_loss', self.f0_loss)
 
-		# self.f0_acc_summary = tf.summary.scalar('f0_accuracy', self.f0_acc[0])
+		self.f0_acc_summary = tf.summary.scalar('f0_accuracy', self.f0_acc[0])
 
 		self.singer_summary = tf.summary.scalar('singer_loss', self.singer_loss)
 
@@ -523,19 +523,19 @@ class MultiSynth(Model):
 			val_singer_acc = 0
 
 			with tf.variable_scope('Training'):
-				for mix_in, singer_targs, voc_out, f0_out in data_generator:
+				for mix_in, singer_targs, voc_out, f0_out, pho_targs in data_generator:
 
-					final_loss, singer_loss, singer_acc, summary_str = self.train_model(mix_in, singer_targs, voc_out, f0_out, epoch, sess)
+					final_loss, singer_loss, singer_acc, f0_loss, f0_acc, pho_loss, pho_acc, summary_str = self.train_model(mix_in, singer_targs, voc_out, f0_out,pho_targs, epoch, sess)
 
 					# import pdb;pdb.set_trace()
 
 					epoch_final_loss+=final_loss
 
-					# epoch_pho_loss+=pho_loss
-					# epoch_pho_acc+=pho_acc
+					epoch_pho_loss+=pho_loss
+					epoch_pho_acc+=pho_acc
 
-					# epoch_f0_loss+=f0_loss
-					# epoch_f0_acc+=f0_acc
+					epoch_f0_loss+=f0_loss
+					epoch_f0_acc+=f0_acc
 
 					epoch_singer_loss+=singer_loss
 					epoch_singer_acc+=singer_acc
@@ -552,13 +552,19 @@ class MultiSynth(Model):
 				epoch_singer_loss = epoch_singer_loss/batch_num
 				epoch_singer_acc = epoch_singer_acc/batch_num
 
+				epoch_pho_loss = epoch_pho_loss/batch_num
+				epoch_pho_acc = epoch_pho_acc/batch_num
+
+				epoch_f0_loss = epoch_f0_loss/batch_num
+				epoch_f0_acc = epoch_f0_acc/batch_num
+
 				print_dict = {"Final Loss": epoch_final_loss}
 
-				# print_dict["Pho Loss"] =  epoch_pho_loss
-				# print_dict["Pho Accuracy"] =  epoch_pho_acc
+				print_dict["Pho Loss"] =  epoch_pho_loss
+				print_dict["Pho Accuracy"] =  epoch_pho_acc
 
-				# print_dict["F0 Loss"] =  epoch_f0_loss
-				# print_dict["F0 Accuracy"] =  epoch_f0_acc
+				print_dict["F0 Loss"] =  epoch_f0_loss
+				print_dict["F0 Accuracy"] =  epoch_f0_acc
 
 				print_dict["Singer Loss"] =  epoch_singer_loss
 				print_dict["Singer Accuracy"] =  epoch_singer_acc
@@ -566,16 +572,16 @@ class MultiSynth(Model):
 			if (epoch + 1) % config.validate_every == 0:
 				batch_num = 0
 				with tf.variable_scope('Validation'):
-					for mix_in, singer_targs, voc_out, f0_out in val_generator:
+					for mix_in, singer_targs, voc_out, f0_out, pho_targs in val_generator:
 
-						final_loss, singer_loss, singer_acc, summary_str = self.validate_model(mix_in, singer_targs, voc_out, f0_out, sess)
+						final_loss, singer_loss, singer_acc, f0_loss, f0_acc, pho_loss, pho_acc, summary_str= self.validate_model(mix_in, singer_targs, voc_out, f0_out,pho_targs, sess)
 						val_final_loss+=final_loss
 
-						# val_pho_loss+=pho_loss
-						# val_pho_acc+=pho_acc
+						val_pho_loss+=pho_loss
+						val_pho_acc+=pho_acc
 
-						# val_f0_loss+=f0_loss
-						# val_f0_acc+=f0_acc
+						val_f0_loss+=f0_loss
+						val_f0_acc+=f0_acc
 
 						val_singer_loss+=singer_loss
 						val_singer_acc+=singer_acc
@@ -588,22 +594,22 @@ class MultiSynth(Model):
 
 					val_final_loss = val_final_loss/batch_num
 
-					# val_pho_loss = val_pho_loss/batch_num
-					# val_pho_acc = val_pho_acc/batch_num
+					val_pho_loss = val_pho_loss/batch_num
+					val_pho_acc = val_pho_acc/batch_num
 
-					# val_f0_loss = val_f0_loss/batch_num
-					# val_f0_acc = val_f0_acc/batch_num
+					val_f0_loss = val_f0_loss/batch_num
+					val_f0_acc = val_f0_acc/batch_num
 
 					val_singer_loss = val_singer_loss/batch_num
 					val_singer_acc = val_singer_acc/batch_num
 
 					print_dict["Val Final Loss"] =  val_final_loss
 
-					# print_dict["Val Pho Loss"] =  val_pho_loss
-					# print_dict["Val Pho Accuracy"] =  val_pho_acc
+					print_dict["Val Pho Loss"] =  val_pho_loss
+					print_dict["Val Pho Accuracy"] =  val_pho_acc
 
-					# print_dict["Val F0 Loss"] =  val_f0_loss
-					# print_dict["Val F0 Accuracy"] =  val_f0_acc
+					print_dict["Val F0 Loss"] =  val_f0_loss
+					print_dict["Val F0 Accuracy"] =  val_f0_acc
 
 					print_dict["Val Singer Loss"] =  val_singer_loss
 					print_dict["Val Singer Accuracy"] =  val_singer_acc
@@ -614,36 +620,36 @@ class MultiSynth(Model):
 			if (epoch + 1) % config.save_every == 0 or (epoch + 1) == config.num_epochs:
 				self.save_model(sess, epoch+1, config.log_dir)
 
-	def train_model(self, mix_in, singer_targs, voc_out, f0_out, epoch, sess):
+	def train_model(self, mix_in, singer_targs, voc_out, f0_out, pho_targs, epoch, sess):
 		"""
 		Function to train the model for each epoch
 		"""
-		feed_dict = {self.input_placeholder: mix_in,self.input_placeholder_singer: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.is_train: True}
+		feed_dict = {self.input_placeholder: mix_in,self.input_placeholder_singer: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.phoneme_labels: pho_targs, self.is_train: True}
 
 		if epoch<300:
 
-			_, final_loss,  singer_loss, singer_acc = sess.run(
-				[ self.singer_train_function, self.final_loss, self.singer_loss, self.singer_acc], feed_dict=feed_dict)
+			_,_, _, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc = sess.run(
+				[self.pho_train_function, self.f0_train_function, self.singer_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
 		else:
-			_, _, final_loss,  singer_loss, singer_acc = sess.run(
-				[ self.singer_train_function, self.final_train_function, self.final_loss, self.singer_loss, self.singer_acc], feed_dict=feed_dict)
+			_, _, _, _, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc  = sess.run(
+				[ self.singer_train_function, self.final_train_function, self.pho_train_function, self.f0_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
 
 		summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
-		return final_loss, singer_loss, singer_acc[0],  summary_str
+		return final_loss, singer_loss, singer_acc[0], f0_loss, f0_acc[0], pho_loss, pho_acc[0], summary_str
 
-	def validate_model(self,mix_in, singer_targs, voc_out, f0_out, sess):
+	def validate_model(self,mix_in, singer_targs, voc_out, f0_out,pho_targs, sess):
 		"""
 		Function to train the model for each epoch
 		"""
-		feed_dict = {self.input_placeholder: mix_in, self.input_placeholder_singer: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.is_train: False}
+		feed_dict = {self.input_placeholder: mix_in, self.input_placeholder_singer: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.phoneme_labels: pho_targs, self.is_train: False}
 
-		final_loss,  singer_loss, singer_acc = sess.run(
-			[self.final_loss, self.singer_loss, self.singer_acc], feed_dict=feed_dict)
+		final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc = sess.run(
+			[self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
 
 		summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
-		return final_loss, singer_loss, singer_acc[0],  summary_str
+		return final_loss, singer_loss, singer_acc[0], f0_loss, f0_acc[0], pho_loss, pho_acc[0], summary_str
 
 
 
@@ -821,19 +827,18 @@ class MultiSynth(Model):
 			self.singer_classes = tf.argmax(self.singer_logits, axis=-1)
 			self.singer_probs = tf.nn.softmax(self.singer_logits)
 
-		# with tf.variable_scope('Phone_Model') as scope:
-		# 	self.pho_emb, self.pho_logits = modules.phone_network(self.input_placeholder, self.is_train)
-		# 	self.pho_classes = tf.argmax(self.pho_logits, axis=-1)
-		# 	self.pho_probs = tf.nn.softmax(self.pho_logits)
+		with tf.variable_scope('Phone_Model') as scope:
+			self.pho_logits = modules.phone_network(self.input_placeholder, self.is_train)
+			self.pho_classes = tf.argmax(self.pho_logits, axis=-1)
+			self.pho_probs = tf.nn.softmax(self.pho_logits)
 
-
-		# with tf.variable_scope('F0_Model') as scope:
-		# 	self.f0_emb, self.f0_logits = modules.f0_network(self.input_placeholder, self.is_train)
-		# 	self.f0_classes = tf.argmax(self.f0_logits, axis=-1)
-		# 	self.f0_probs = tf.nn.softmax(self.f0_logits)
+		with tf.variable_scope('F0_Model') as scope:
+			self.f0_logits = modules.f0_network(self.input_placeholder, self.is_train)
+			self.f0_classes = tf.argmax(self.f0_logits, axis=-1)
+			self.f0_probs = tf.nn.softmax(self.f0_logits)
 
 		with tf.variable_scope('Final_Model') as scope:
-			self.output = modules.full_network(self.input_placeholder, self.f0_onehot_labels, self.singer_emb, self.is_train)
+			self.output = modules.full_network(self.input_placeholder, self.f0_probs, self.pho_probs, self.singer_emb, self.is_train)
 			self.output_decoded = tf.nn.sigmoid(self.output)
 			# self.output_wav_decoded = tf.nn.sigmoid(self.output_wav)
 

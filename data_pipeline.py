@@ -74,6 +74,8 @@ def data_gen_pho(mode = 'Train', sec_mode = 0):
             voc_to_open = file_list[voc_index]
 
 
+
+
             voc_file = h5py.File(config.voice_dir+voc_to_open, "r")
 
 
@@ -87,7 +89,7 @@ def data_gen_pho(mode = 'Train', sec_mode = 0):
                 else: 
                     Flag = True
                     pho_target = np.array(voc_file["phonemes"])
-
+                    pho_target = [config.phonemas_all.index(config.phonemas[x]) for x in pho_target]
                     # singer_name = voc_to_open.split('_')[1]
                     # singer_index = config.singers.index(singer_name)
             else:
@@ -116,13 +118,20 @@ def data_gen_pho(mode = 'Train', sec_mode = 0):
 
 def data_gen_full(mode = 'Train', sec_mode = 0):
 
-    mix_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[3] not in ['15.hdf5','20.hdf5'] and not x.startswith('nus_KENN_read') or x.startswith('casas') and not x in config.do_not_use]
+    casas_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('casas') and not x in config.do_not_use]
+
+    nus_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[3] not in ['15.hdf5','20.hdf5'] and not x.startswith('nus_KENN_read') ]
+
+    pho_list = nus_list + casas_list[:int(0.8*len(casas_list))]
 
     mix_list_med = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('med') and not x.split('_')[1] in ['MusicDelta', 'ClaraBerryAndWooldog','ClaraBerryAndWooldog','CelestialShore', 'Schumann', 'Mozart', 'NightPanther', 'Debussy', 'HeladoNegro']]
 
-    mix_list = mix_list+mix_list_med[:int(0.8*len(mix_list_med))]
+    mix_list = pho_list + mix_list_med[:int(0.8*len(mix_list_med))]
 
-    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[3] in ['15.hdf5','20.hdf5']  and not x.startswith('nus_KENN_read')] + mix_list_med[int(0.8*len(mix_list_med)):]
+    back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x.startswith('._') and not x.startswith('mir') and not x.startswith('med')]
+
+    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[3] in ['15.hdf5','20.hdf5']  and not x.startswith('nus_KENN_read')] + casas_list[int(0.8)*len(casas_list):]
+    # + mix_list_med[int(0.8*len(mix_list_med)):]
 
     # import pdb;pdb.set_trace()
 
@@ -143,16 +152,14 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
     if mode == "Train":
         num_batches = config.batches_per_epoch_train
-        file_list = mix_list
+        file_list = pho_list
 
     else: 
         num_batches = config.batches_per_epoch_val
         file_list = val_list
 
-
-
     for k in range(num_batches):
-        # pho_targs = []
+        pho_targs = []
 
         # f0_targs = []
 
@@ -199,14 +206,60 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
             f0_quant = f0_quant * (1-feats[:,-1]) 
 
-            # import pdb;pdb.set_trace()
+            back_index = np.random.randint(0,len(back_list))
 
-            # f0_quant[f0_quant]
+            back_to_open = back_list[back_index]
+
+            back_file = h5py.File(config.backing_dir+back_to_open, "r")
+
+            back_stft = np.array(back_file['back_stft'])
+
+            pho_target = voc_file["phonemes"]
+
+
+            # if voc_to_open.startswith('nus'):
+            #     if not  "phonemes" in voc_file:
+            #         print(voc_file)
+            #         Flag = False
+            #     else: 
+            #         Flag = True
+            #         pho_target = voc_file["phonemes"]
+            #         # import pdb;pdb.set_trace()
+            #         pho_target = [config.phonemas_all.index(config.phonemas[int(x)]) for x in pho_target]
+
+            # elif voc_to_open.startswith('casas'):
+            #     if not  "phonemes" in voc_file:
+            #         print(voc_file)
+            #         Flag = False
+            #     else: 
+            #         Flag = True
+            #         pho_target = voc_file["phonemes"]
+            #         # import pdb;pdb.set_trace()
+            #         pho_target = [config.phonemas_all.index(config.phonemas_full[int(x)]) for x in pho_target[:,1]]
+
 
             for j in range(config.samples_per_file):
                     voc_idx = np.random.randint(0,len(voc_stft)-config.max_phr_len)
-                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]
+                    bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
+
+                    mix_degree = np.clip(np.random.rand(1),0.0,0.9) 
+
+                    mix_stft = (voc_stft[voc_idx:voc_idx+config.max_phr_len,:] + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (1+mix_degree)
+
                     mix_in.append(mix_stft)
+
+                    pho_t = pho_target[voc_idx:voc_idx+config.max_phr_len]
+
+                    if voc_to_open.startswith('nus'):
+
+                        pho_t = [config.phonemas_all.index(config.phonemas[int(x)]) for x in pho_t]
+                        # import pdb;pdb.set_trace()
+                    elif voc_to_open.startswith('casas'):
+                        pho_t = [config.phonemas_all.index(config.phonemas_full[int(x)]) for x in pho_t[:,1]]
+                        # import pdb;pdb.set_trace()
+
+
+                    pho_targs.append(pho_t)
 
                     voc_out.append(feats[voc_idx:voc_idx+config.max_phr_len,:])
 
@@ -215,9 +268,13 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
                     singer_targs.append(singer_index)
 
 
-        mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
+        # mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
 
-        # import pdb;pdb.set_trace()
+        mix_in = np.clip(np.array(mix_in), 0.0, 1.0)
+
+
+
+        pho_targs = np.array(pho_targs)
 
         voc_out = (np.array(voc_out) - min_feat)/(max_feat - min_feat)
 
@@ -227,11 +284,11 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
         singer_targs = np.array(singer_targs)
 
-        assert mix_in.max()<=1.0 and mix_in.min()>=0
+        # assert mix_in.max()<=1.0 and mix_in.min()>=0
 
-        assert voc_out.max()<=1.0 and voc_out.min()>=0
+        # assert voc_out.max()<=1.0 and voc_out.min()>=0
 
-        yield mix_in, singer_targs, voc_out, f0_out
+        yield mix_in, singer_targs, voc_out, f0_out, pho_targs
 
 
 def get_stats():
@@ -365,10 +422,10 @@ def get_stats_phonems():
 def main():
     # gen_train_val()
     # get_stats()
-    gen = data_gen_full('Train', sec_mode = 0)
+    gen = data_gen_full('val', sec_mode = 0)
     while True :
         start_time = time.time()
-        mix_in, singer_targs, voc_out, f0_out = next(gen)
+        mix_in, singer_targs, voc_out, f0_out, pho_targs = next(gen)
         print(time.time()-start_time)
 
     #     plt.subplot(411)
