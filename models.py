@@ -653,7 +653,7 @@ class MultiSynth(Model):
 
 
 
-	def read_input_file(self, file_name):
+	def read_hdf5_file(self, file_name):
 		"""
 		Function to read and process input file, given name and the synth_mode.
 		Returns features for the file based on mode (0 for hdf5 file, 1 for wav file).
@@ -694,86 +694,29 @@ class MultiSynth(Model):
 
 		feat_file.close()
 
+		return voc_stft, feats
 
-
-		# in_batches_pho, nchunks_in = utils.generate_overlapadd(np.expand_dims(pho_target,-1))
-
-		# in_batches_pho = np.squeeze(in_batches_pho)
-
-		return voc_stft, feats, f0_quant
-
-	def test_file(self, file_name, file_name_singer):
+	def test_file_hdf5(self, file_name, file_name_singer):
 		"""
 		Function to extract multi pitch from file. Currently supports only HDF5 files.
 		"""
 		sess = tf.Session()
 		self.load_model(sess, log_dir = config.log_dir)
-		scores = self.process_file(file_name, file_name_singer, sess)
-		return scores
+		voc_stft, feats = self.read_hdf5_file(file_name)
 
-	def process_file(self, file_name, file_name_singer, sess):
+		voc_stft_singer, feats_singer = self.read_hdf5_file(file_name_singer)
+		out_feats = self.process_file(voc_stft, voc_stft_singer, sess)
 
-		stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
+		self.plot_features(feats, out_feats)
 
-		max_voc = np.array(stat_file["voc_stft_maximus"])
-		min_voc = np.array(stat_file["voc_stft_minimus"])
+		import pdb;pdb.set_trace()
 
-		max_feat = np.array(stat_file["feats_maximus"])
-		min_feat = np.array(stat_file["feats_minimus"])
-		stat_file.close()
+		out_featss = np.concatenate((out_feats[:feats.shape[0]], feats[:,-2:]), axis = -1)
 
-		voc_stft, feats, f0_quant = self.read_input_file(file_name)
+		utils.feats_to_audio(out_featss,file_name[:-4]+'gan_op.wav') 
 
-		voc_stft_singer, feats_singer, f0_quant_singer = self.read_input_file(file_name_singer)
+	def plot_features(self, feats, out_feats):
 
-		if len(voc_stft)>len(voc_stft_singer):
-			voc_stft = voc_stft[:len(voc_stft_singer)]
-		else:
-			voc_stft_singer = voc_stft_singer[:len(voc_stft)]
-
-		in_batches_stft, nchunks_in = utils.generate_overlapadd(voc_stft)
-
-		in_batches_stft_singer, nchunks_in_singer = utils.generate_overlapadd(voc_stft)
-
-		in_batches_f0, nchunks_in = utils.generate_overlapadd(np.expand_dims(f0_quant,-1))
-
-		in_batches_f0 = np.squeeze(in_batches_f0)
-
-		in_batches_stft = (np.array(in_batches_stft) - min_voc)/(max_voc - min_voc)
-
-		in_batches_stft_singer = (np.array(in_batches_stft_singer) - min_voc)/(max_voc - min_voc)
-
-		singer_name = file_name.split('_')[1]
-		singer_index = config.singers.index(singer_name)
-
-		out_batches_stft = []
-		out_batches_wav = []
-		for in_batch_stft, in_batch_stft_singer, in_batch_f0 in zip(in_batches_stft, in_batches_stft_singer, in_batches_f0) :
-			feed_dict = {self.input_placeholder: in_batch_stft,self.input_placeholder_singer: in_batch_stft_singer, self.singer_labels: np.ones(config.batch_size)*singer_index, self.f0_labels: in_batch_f0, self.is_train: False}
-			out_stft = sess.run(self.output_decoded, feed_dict=feed_dict)
-			out_batches_stft.append(out_stft)
-			# out_batches_wav.append(out_wav)
-
-		out_batches_stft = np.array(out_batches_stft)
-		# out_batches_wav = np.array(out_batches_wav)
-
-
-		out_batches_stft = utils.overlapadd(out_batches_stft,nchunks_in)
-		in_batches_stft = utils.overlapadd(in_batches_stft,nchunks_in)
-
-		# out_batches_wav = utils.overlapadd(out_batches_wav,nchunks_in)
-
-		# out_batches_wav = utils.overlapadd(np.expand_dims(out_batches_wav, -1),nchunks_in, overlap = config.max_phr_len*2**7)	
-
-		# out_batches_wav = out_batches_wav *2 -1
-
-		out_batches_stft = out_batches_stft*(max_feat[:-2] - min_feat[:-2]) + min_feat[:-2]
-
-		# audio,fs = sf.read(config.wav_dir_nus+singer_name+'/'+file_name.split('_')[2]+'/'+file_name.split('_')[-1][:-4]+'wav')
-
-		# in_batches_pho = utils.overlapadd(in_batches_pho,nchunks_in)		
-
-		# import pdb;pdb.set_trace()
 		plt.figure(1)
 		
 		ax1 = plt.subplot(211)
@@ -786,34 +729,60 @@ class MultiSynth(Model):
 
 		ax3.set_title("Output STFT", fontsize=10)
 
-		plt.imshow(out_batches_stft.T,aspect='auto',origin='lower')
-
-		# plt.figure(2)
-		
-		# ax1 = plt.subplot(211)
-
-		# plt.plot(audio)
-
-		# ax1.set_title("Ground Truth Waveform", fontsize=10)
-
-		# ax3 =plt.subplot(212, sharex = ax1, sharey = ax1)
-
-		# ax3.set_title("Output Waveform", fontsize=10)
-
-		# plt.plot(out_batches_wav)
+		plt.imshow(out_feats.T,aspect='auto',origin='lower')
 
 
 		plt.show()
 
-		out_featss = np.concatenate((out_batches_stft[:feats.shape[0]], feats[:,-2:]), axis = -1)
 
-		utils.feats_to_audio(out_featss,file_name[:-4]+'gan_op.wav') 
-		
-		# audio_out = utils.istft(out_batches_stft[:len(voc_stft_p)], voc_stft_p)
+	def process_file(self, voc_stft, voc_stft_singer, sess):
 
-		# sf.write('./test_2.wav', audio_out, config.fs)
+		stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
 
-		import pdb;pdb.set_trace()
+		max_voc = np.array(stat_file["voc_stft_maximus"])
+		min_voc = np.array(stat_file["voc_stft_minimus"])
+
+		max_feat = np.array(stat_file["feats_maximus"])
+		min_feat = np.array(stat_file["feats_minimus"])
+		stat_file.close()
+
+
+		if len(voc_stft)>len(voc_stft_singer):
+			voc_stft = voc_stft[:len(voc_stft_singer)]
+		else:
+			voc_stft_singer = voc_stft_singer[:len(voc_stft)]
+
+		in_batches_stft, nchunks_in = utils.generate_overlapadd(voc_stft)
+
+		in_batches_stft_singer, nchunks_in_singer = utils.generate_overlapadd(voc_stft_singer)
+
+		in_batches_stft = np.clip(in_batches_stft, 0.0, 1.0) 
+
+		in_batches_stft_singer = np.clip(in_batches_stft_singer, 0.0, 1.0) 
+
+
+		out_batches_feats = []
+
+		for in_batch_stft, in_batch_stft_singer in zip(in_batches_stft, in_batches_stft_singer) :
+			feed_dict = {self.input_placeholder: in_batch_stft,self.input_placeholder_singer: in_batch_stft_singer, self.is_train: False}
+			out_feats = sess.run(self.output_decoded, feed_dict=feed_dict)
+			out_batches_feats.append(out_feats)
+
+		out_batches_feats = np.array(out_batches_feats)
+
+		out_batches_feats = utils.overlapadd(out_batches_feats,nchunks_in)
+
+		# out_batches_wav = utils.overlapadd(out_batches_wav,nchunks_in)
+
+		# out_batches_wav = utils.overlapadd(np.expand_dims(out_batches_wav, -1),nchunks_in, overlap = config.max_phr_len*2**7)	
+
+		# out_batches_wav = out_batches_wav *2 -1
+
+		out_batches_feats = out_batches_feats*(max_feat[:-2] - min_feat[:-2]) + min_feat[:-2]
+
+		return out_batches_feats
+
+
 
 	def model(self):
 		"""

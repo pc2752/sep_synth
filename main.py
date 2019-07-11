@@ -13,7 +13,7 @@ def train(_):
 
 def eval_hdf5_file(file_name, file_name_singer):
     model = models.MultiSynth()
-    model.test_file(file_name, file_name_singer)
+    model.test_file_hdf5(file_name, file_name_singer)
 
 if __name__ == '__main__':
     if len(sys.argv)<2 or sys.argv[1] == '-help' or sys.argv[1] == '--help' or sys.argv[1] == '--h' or sys.argv[1] == '-h':
