@@ -626,7 +626,7 @@ class MultiSynth(Model):
 		"""
 		feed_dict = {self.input_placeholder: mix_in,self.input_placeholder_singer: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.phoneme_labels: pho_targs, self.is_train: True}
 
-		if epoch<300:
+		if epoch<1000:
 
 			_,_, _, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc = sess.run(
 				[self.pho_train_function, self.f0_train_function, self.singer_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
@@ -807,7 +807,7 @@ class MultiSynth(Model):
 			self.f0_probs = tf.nn.softmax(self.f0_logits)
 
 		with tf.variable_scope('Final_Model') as scope:
-			self.output = modules.full_network(self.input_placeholder, self.f0_probs, self.pho_probs, self.singer_emb, self.is_train)
+			self.output = modules.full_network(self.f0_probs, self.pho_probs, self.singer_emb, self.is_train)
 			self.output_decoded = tf.nn.sigmoid(self.output)
 			# self.output_wav_decoded = tf.nn.sigmoid(self.output_wav)
 
