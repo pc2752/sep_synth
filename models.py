@@ -372,16 +372,19 @@ class MultiSynth(Model):
 		self.singer_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Singer_Model')
 		self.f0_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'F0_Model')
 		self.final_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Final_Model')
+		self.emb_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Emb_Model')
 
 		self.pho_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
 		self.final_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
 		self.singer_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
 		self.f0_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
+		self.emb_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
 
 		self.global_step = tf.Variable(0, name='global_step', trainable=False)
 		self.global_step_pho = tf.Variable(0, name='pho_global_step', trainable=False)
 		self.global_step_f0 = tf.Variable(0, name='f0_global_step', trainable=False)
 		self.global_step_singer = tf.Variable(0, name='singer_global_step', trainable=False)
+		self.global_step_emb = tf.Variable(0, name='emb_global_step', trainable=False)
 
 
 		update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
@@ -390,6 +393,7 @@ class MultiSynth(Model):
 			self.pho_train_function = self.pho_optimizer.minimize(self.pho_loss, global_step = self.global_step_pho, var_list = self.pho_params)
 			self.f0_train_function = self.f0_optimizer.minimize(self.f0_loss, global_step = self.global_step_f0, var_list = self.f0_params)
 			self.singer_train_function = self.singer_optimizer.minimize(self.singer_loss, global_step = self.global_step_singer, var_list = self.singer_params)
+			self.emb_train_function = self.singer_optimizer.minimize(self.emb_loss, global_step = self.global_step_emb, var_list = self.emb_params)
 
 	def loss_function(self):
 		"""
@@ -410,11 +414,17 @@ class MultiSynth(Model):
 
 		self.singer_acc = tf.metrics.accuracy(labels=self.singer_labels , predictions=self.singer_classes)
 
+		self.emb_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.singer_onehot_labels, logits=self.singer_logits_1))
+
+		self.emb_acc = tf.metrics.accuracy(labels=self.singer_labels , predictions=self.singer_classes_1)
+
+		self.cha_acc = tf.metrics.accuracy(labels=self.singer_labels , predictions=self.singer_classes_2)
+
 		self.f0_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.f0_onehot_labels, logits=self.f0_logits))
 
 		self.f0_acc = tf.metrics.accuracy(labels=self.f0_labels , predictions=self.f0_classes)
 
-		self.final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.output_placeholder, logits = self.output)) 
+		self.final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.output_placeholder, logits = self.output)) + tf.reduce_sum(tf.abs(self.singer_emb_2- self.singer_emb_1))
 		# tf.reduce_sum(tf.abs(self.input_placeholder- self.output))
 		# 
 		# + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.wave_placeholder, logits = self.output_wav))
@@ -437,6 +447,13 @@ class MultiSynth(Model):
 		self.singer_summary = tf.summary.scalar('singer_loss', self.singer_loss)
 
 		self.singer_acc_summary = tf.summary.scalar('singer_accuracy', self.singer_acc[0])
+
+
+		self.emb_summary = tf.summary.scalar('emb_loss', self.emb_loss)
+
+		self.emb_acc_summary = tf.summary.scalar('emb_accuracy', self.emb_acc[0])
+
+		self.cha_acc_summary = tf.summary.scalar('cha_accuracy', self.cha_acc[0])
 
 		self.train_summary_writer = tf.summary.FileWriter(log_dir+'train/', sess.graph)
 		self.val_summary_writer = tf.summary.FileWriter(log_dir+'val/', sess.graph)
@@ -511,6 +528,10 @@ class MultiSynth(Model):
 			epoch_singer_loss = 0
 			epoch_singer_acc = 0
 
+			epoch_emb_loss = 0
+			epoch_emb_acc = 0
+			epoch_cha_acc = 0
+
 			val_final_loss = 0
 
 			val_pho_loss = 0
@@ -522,10 +543,14 @@ class MultiSynth(Model):
 			val_singer_loss = 0
 			val_singer_acc = 0
 
+			val_emb_loss = 0
+			val_emb_acc = 0
+			val_cha_acc = 0
+
 			with tf.variable_scope('Training'):
 				for mix_in, singer_targs, voc_out, f0_out, pho_targs in data_generator:
 
-					final_loss, singer_loss, singer_acc, f0_loss, f0_acc, pho_loss, pho_acc, summary_str = self.train_model(mix_in, singer_targs, voc_out, f0_out,pho_targs, epoch, sess)
+					final_loss, singer_loss, singer_acc, f0_loss, f0_acc, pho_loss, pho_acc, emb_loss, emb_acc, cha_acc, summary_str = self.train_model(mix_in, singer_targs, voc_out, f0_out,pho_targs, epoch, sess)
 
 					# import pdb;pdb.set_trace()
 
@@ -540,6 +565,10 @@ class MultiSynth(Model):
 					epoch_singer_loss+=singer_loss
 					epoch_singer_acc+=singer_acc
 
+					epoch_emb_loss+=emb_loss
+					epoch_emb_acc+=emb_acc
+					epoch_cha_acc+=cha_acc
+
 					self.train_summary_writer.add_summary(summary_str, epoch)
 					self.train_summary_writer.flush()
 
@@ -551,6 +580,10 @@ class MultiSynth(Model):
 
 				epoch_singer_loss = epoch_singer_loss/batch_num
 				epoch_singer_acc = epoch_singer_acc/batch_num
+
+				epoch_emb_loss = epoch_emb_loss/batch_num
+				epoch_emb_acc = epoch_emb_acc/batch_num
+				epoch_cha_acc = epoch_cha_acc/batch_num
 
 				epoch_pho_loss = epoch_pho_loss/batch_num
 				epoch_pho_acc = epoch_pho_acc/batch_num
@@ -569,12 +602,16 @@ class MultiSynth(Model):
 				print_dict["Singer Loss"] =  epoch_singer_loss
 				print_dict["Singer Accuracy"] =  epoch_singer_acc
 
+				print_dict["Emb Loss"] =  epoch_emb_loss
+				print_dict["Emb Accuracy"] =  epoch_emb_acc
+				print_dict["Cha Accuracy"] =  epoch_cha_acc
+
 			if (epoch + 1) % config.validate_every == 0:
 				batch_num = 0
 				with tf.variable_scope('Validation'):
 					for mix_in, singer_targs, voc_out, f0_out, pho_targs in val_generator:
 
-						final_loss, singer_loss, singer_acc, f0_loss, f0_acc, pho_loss, pho_acc, summary_str= self.validate_model(mix_in, singer_targs, voc_out, f0_out,pho_targs, sess)
+						final_loss, singer_loss, singer_acc, f0_loss, f0_acc, pho_loss, pho_acc,emb_loss, emb_acc, cha_acc, summary_str= self.validate_model(mix_in, singer_targs, voc_out, f0_out,pho_targs, sess)
 						val_final_loss+=final_loss
 
 						val_pho_loss+=pho_loss
@@ -585,6 +622,10 @@ class MultiSynth(Model):
 
 						val_singer_loss+=singer_loss
 						val_singer_acc+=singer_acc
+
+						val_emb_loss+=emb_loss
+						val_emb_acc+=emb_acc
+						val_cha_acc+=cha_acc
 
 						self.val_summary_writer.add_summary(summary_str, epoch)
 						self.val_summary_writer.flush()
@@ -603,6 +644,11 @@ class MultiSynth(Model):
 					val_singer_loss = val_singer_loss/batch_num
 					val_singer_acc = val_singer_acc/batch_num
 
+					val_emb_loss = val_emb_loss/batch_num
+					val_emb_acc = val_emb_acc/batch_num
+					val_cha_acc = val_cha_acc/batch_num
+
+
 					print_dict["Val Final Loss"] =  val_final_loss
 
 					print_dict["Val Pho Loss"] =  val_pho_loss
@@ -613,6 +659,10 @@ class MultiSynth(Model):
 
 					print_dict["Val Singer Loss"] =  val_singer_loss
 					print_dict["Val Singer Accuracy"] =  val_singer_acc
+
+					print_dict["Val Emb Loss"] =  val_emb_loss
+					print_dict["Val Emb Accuracy"] =  val_emb_acc
+					print_dict["Val Cha Accuracy"] =  val_cha_acc
 
 			end_time = time.time()
 			if (epoch + 1) % config.print_every == 0:
@@ -628,15 +678,17 @@ class MultiSynth(Model):
 
 		if epoch<1000:
 
-			_,_, _, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc = sess.run(
-				[self.pho_train_function, self.f0_train_function, self.singer_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
+			_,_, _,_, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc, emb_loss, emb_acc, cha_acc = sess.run(
+				[self.pho_train_function, self.f0_train_function, self.singer_train_function, self.emb_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc,
+				 self.f0_loss, self.f0_acc, self.emb_loss, self.emb_acc, self.cha_acc], feed_dict=feed_dict)
 		else:
-			_, _, _, _, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc  = sess.run(
-				[ self.singer_train_function, self.final_train_function, self.pho_train_function, self.f0_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
+			_, _, _, _,_, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc, emb_loss, emb_acc, cha_acc  = sess.run(
+				[ self.singer_train_function, self.final_train_function, self.pho_train_function, self.f0_train_function,  self.emb_train_function, self.final_loss, self.singer_loss, self.singer_acc, 
+				self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc, self.emb_loss, self.emb_acc, self.cha_acc], feed_dict=feed_dict)
 
 		summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
-		return final_loss, singer_loss, singer_acc[0], f0_loss, f0_acc[0], pho_loss, pho_acc[0], summary_str
+		return final_loss, singer_loss, singer_acc[0], f0_loss, f0_acc[0], pho_loss, pho_acc[0], emb_loss, emb_acc[0], cha_acc[0], summary_str
 
 	def validate_model(self,mix_in, singer_targs, voc_out, f0_out,pho_targs, sess):
 		"""
@@ -644,12 +696,13 @@ class MultiSynth(Model):
 		"""
 		feed_dict = {self.input_placeholder: mix_in, self.input_placeholder_singer: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.phoneme_labels: pho_targs, self.is_train: False}
 
-		final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc = sess.run(
-			[self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
+		final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc, emb_loss, emb_acc, cha_acc = sess.run(
+			[self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc,
+			 self.f0_loss, self.f0_acc, self.emb_loss, self.emb_acc, self.cha_acc], feed_dict=feed_dict)
 
 		summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
-		return final_loss, singer_loss, singer_acc[0], f0_loss, f0_acc[0], pho_loss, pho_acc[0], summary_str
+		return final_loss, singer_loss, singer_acc[0], f0_loss, f0_acc[0], pho_loss, pho_acc[0], emb_loss, emb_acc[0], cha_acc[0], summary_str
 
 
 
@@ -810,8 +863,14 @@ class MultiSynth(Model):
 			self.output = modules.full_network(self.f0_probs, self.pho_probs, self.singer_emb, self.is_train)
 			self.output_decoded = tf.nn.sigmoid(self.output)
 			# self.output_wav_decoded = tf.nn.sigmoid(self.output_wav)
-
-
+		with tf.variable_scope('Emb_Model') as scope:
+			self.singer_emb_1, self.singer_logits_1 = modules.singer_network(self.output_placeholder, self.is_train)
+			self.singer_classes_1 = tf.argmax(self.singer_logits_1, axis=-1)
+			self.singer_probs_1 = tf.nn.softmax(self.singer_logits_1)
+			scope.reuse_variables()
+			self.singer_emb_2, self.singer_logits_2 = modules.singer_network(self.output_decoded, self.is_train)
+			self.singer_classes_2 = tf.argmax(self.singer_logits_2, axis=-1)
+			self.singer_probs_2 = tf.nn.softmax(self.singer_logits_2)
 
 def test():
 	# model = DeepSal()
