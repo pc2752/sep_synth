@@ -403,8 +403,8 @@ def singer_network(inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
 
-    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters*2
-        , name = "S_in"), training = is_train)
+    # inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters*2
+    #     , name = "S_in"), training = is_train)
 
     encoded = inputs
 

@@ -807,7 +807,7 @@ class MultiSynth(Model):
 			self.f0_probs = tf.nn.softmax(self.f0_logits)
 
 		with tf.variable_scope('Final_Model') as scope:
-			self.output = modules.full_network(self.f0_probs, self.pho_probs, self.singer_emb, self.is_train)
+			self.output = modules.full_network(self.f0_probs, self.pho_probs, self.singer_onehot_labels, self.is_train)
 			self.output_decoded = tf.nn.sigmoid(self.output)
 			# self.output_wav_decoded = tf.nn.sigmoid(self.output_wav)
 
