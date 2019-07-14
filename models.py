@@ -711,7 +711,7 @@ class MultiSynth(Model):
 
 		import pdb;pdb.set_trace()
 
-		out_featss = np.concatenate((out_feats[:feats.shape[0]], feats[:,-2:]), axis = -1)
+		out_featss = np.concatenate((out_feats[:feats.shape[0]], feats[:out_feats.shape[0],-2:]), axis = -1)
 
 		utils.feats_to_audio(out_featss,file_name[:-4]+'gan_op.wav') 
 
