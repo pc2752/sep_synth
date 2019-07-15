@@ -14,7 +14,7 @@ wav_dir_vctk_lab = '../datasets/VCTK/VCTK_files/VCTK-Corpus/forPritish/'
 voice_dir = '../ss_synthesis/voice/'
 backing_dir = '../ss_synthesis/backing/'
 
-log_dir = './log_singer_fix/'
+log_dir = './log_singer_fix_nus/'
 
 
 data_log = './log/data_log.log'
@@ -62,7 +62,8 @@ phonemas = ['t', 'y', 'l', 'k', 'aa', 'jh', 'ae', 'ng', 'ah', 'hh', 'z', 'ey', '
 phonemas_esp = ['B', 'U', 'g', 'k', 'm', 'tS', 'J', 'L', 'x', 'n', 'i', 'r', 'a', 'o', 'w', 'j', 's', 'f', 'I', 'rr', 't', 'd', 'e', 'l', 'b', 'Sil', 'u', 'D', 'p', 'G', 'T']
 phonemas_cat = ['B', 'U', 'g', 'S', 'k', 'm', 'O', 'dZ', 'J', 'Z', 'tS', 'ts', 'n', 'r', 'i', 'a', 'z', 'w', 'o', 'ae', 'j', 's', 'f', 'I', 'rr', 't', 'd', 'e', 'l', 'N', 'b', 'Sil', 'u', 'L0', 'E', 'D', 'p', 'dz', 'G']
 phonemas_full = list(set(phonemas_esp+phonemas_cat))
-phonemas_all = list(set(phonemas+phonemas_full))
+phonemas_all = phonemas
+# list(set(phonemas+phonemas_full))
 
 num_phos = len(phonemas_all)
 

@@ -122,7 +122,8 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
     nus_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[3] not in ['15.hdf5','20.hdf5'] and not x.startswith('nus_KENN_read') ]
 
-    pho_list = nus_list + casas_list[:int(0.8*len(casas_list))]
+    pho_list = nus_list 
+    # + casas_list[:int(0.8*len(casas_list))]
 
     mix_list_med = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('med') and not x.split('_')[1] in ['MusicDelta', 'ClaraBerryAndWooldog','ClaraBerryAndWooldog','CelestialShore', 'Schumann', 'Mozart', 'NightPanther', 'Debussy', 'HeladoNegro']]
 
@@ -130,7 +131,8 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
     back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x.startswith('._') and not x.startswith('mir') and not x.startswith('med')]
 
-    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[3] in ['15.hdf5','20.hdf5']  and not x.startswith('nus_KENN_read')] + casas_list[int(0.8)*len(casas_list):]
+    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[3] in ['15.hdf5','20.hdf5']  and not x.startswith('nus_KENN_read')]
+     # + casas_list[int(0.8)*len(casas_list):]
     # + mix_list_med[int(0.8*len(mix_list_med)):]
 
     # import pdb;pdb.set_trace()
@@ -250,13 +252,13 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
                     pho_t = pho_target[voc_idx:voc_idx+config.max_phr_len]
 
-                    if voc_to_open.startswith('nus'):
+                    # if voc_to_open.startswith('nus'):
 
-                        pho_t = [config.phonemas_all.index(config.phonemas[int(x)]) for x in pho_t]
-                        # import pdb;pdb.set_trace()
-                    elif voc_to_open.startswith('casas'):
-                        pho_t = [config.phonemas_all.index(config.phonemas_full[int(x)]) for x in pho_t[:,1]]
-                        # import pdb;pdb.set_trace()
+                    #     pho_t = [config.phonemas_all.index(config.phonemas[int(x)]) for x in pho_t]
+                    #     # import pdb;pdb.set_trace()
+                    # elif voc_to_open.startswith('casas'):
+                    #     pho_t = [config.phonemas_all.index(config.phonemas_full[int(x)]) for x in pho_t[:,1]]
+                    #     # import pdb;pdb.set_trace()
 
 
                     pho_targs.append(pho_t)
