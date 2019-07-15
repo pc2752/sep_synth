@@ -62,7 +62,8 @@ phonemas = ['t', 'y', 'l', 'k', 'aa', 'jh', 'ae', 'ng', 'ah', 'hh', 'z', 'ey', '
 phonemas_esp = ['B', 'U', 'g', 'k', 'm', 'tS', 'J', 'L', 'x', 'n', 'i', 'r', 'a', 'o', 'w', 'j', 's', 'f', 'I', 'rr', 't', 'd', 'e', 'l', 'b', 'Sil', 'u', 'D', 'p', 'G', 'T']
 phonemas_cat = ['B', 'U', 'g', 'S', 'k', 'm', 'O', 'dZ', 'J', 'Z', 'tS', 'ts', 'n', 'r', 'i', 'a', 'z', 'w', 'o', 'ae', 'j', 's', 'f', 'I', 'rr', 't', 'd', 'e', 'l', 'N', 'b', 'Sil', 'u', 'L0', 'E', 'D', 'p', 'dz', 'G']
 phonemas_full = list(set(phonemas_esp+phonemas_cat))
-phonemas_all = list(set(phonemas+phonemas_full))
+phonemas_all = phonemas
+# list(set(phonemas+phonemas_full))
 
 num_phos = len(phonemas_all)
 
@@ -109,7 +110,8 @@ phonemas_weights[38] = 1.0
 
 val_files = 30
 
-singers = ['ADIZ', 'JLEE', 'JTAN', 'KENN', 'MCUR', 'MPOL', 'MPUR', 'NJAT', 'PMAR', 'SAMF', 'VKOW' ,'ZHIY','Miriam', 'Anna', 'Pau', 'Mar', 'Pol', 'Irene', 'Sara', 'JosepC', 'JosepT', 'Clara', 'Miguel', 'Miquel']
+singers = ['ADIZ', 'JLEE', 'JTAN', 'KENN', 'MCUR', 'MPOL', 'MPUR', 'NJAT', 'PMAR', 'SAMF', 'VKOW' ,'ZHIY']
+# 'Miriam', 'Anna', 'Pau', 'Mar', 'Pol', 'Irene', 'Sara', 'JosepC', 'JosepT', 'Clara', 'Miguel', 'Miquel']
 singers_med = ['StrandOfOaks', 'MatthewEntwistle', 'AimeeNorwich', 'BrandonWebster', 'LizNelson', 'ClaraBerryAndWooldog', 'LizNelson', 'AlexanderRoss', 'Grants', 'BigTroubles', 'PortStWillow', 'PurlingHiss', 'ClaraBerryAndWooldog', 'ClaraBerryAndWooldog', 'MatthewEntwistle', 'TheSoSoGlos', 'DreamersOfTheGhetto', 'Meaxic', 'Auctioneer', 'TheDistricts', 'AlexanderRoss', 'BrandonWebster', 'HopAlong', 'FamilyBand', 'Snowmine', 'FacesOnFilm', 'ClaraBerryAndWooldog', 'TheScarletBrand', 'ClaraBerryAndWooldog', 'Meaxic', 'AClassicEducation', 'Creepoid', 'AvaLuna', 'Lushlife', 'InvisibleFamiliars', 'SweetLights', 'SecretMountains', 'HezekiahJones', 'StevenClark', 'Wolf',]
 # , 'p255', 'p285', 'p260', 'p247', 'p266', 'p364', 'p265', 'p233', 'p341', 'p347', 'p243', 'p300', 'p284', 'p283', 'p239', 'p269', 'p236', 'p281', 'p293', 'p241', 'p240', 'p259', 'p244', 'p271', 'p294', 'p287', 'p263', 'p261', 'p334', 'p323', 'p227', 'p282', 'p313', 'p248', 'p277', 'p297', 'p314', 'p250', 'p335', 'p374', 'p315', 'p304', 'p298', 'p288', 'p234', 'p310', 'p262', 'p329', 'p251', 'p330', 'p339', 'p312', 'p256', 'p258', 'p231', 'p249', 'p317', 'p301', 'p292', 'p306', 'p360', 'p272', 'p316', 'p311', 'p308', 'p318', 'p229', 'p245', 'p361', 'p232', 'p257', 'p264', 'p237', 'p226', 'p246', 'p351', 'p270', 'p228', 'p286', 'p267', 'p376', 'p333', 'p252', 'p253', 'p345', 'p254', 'p278', 'p336', 'p268', 'p363', 'p326', 'p303', 'p362', 'p295', 'p274', 'p273', 'p305', 'p343', 'p276', 'p275', 'p225', 'p238', 'p302', 'p279', 'p307', 'p299', 'p340', 'p280', 'p230']
 num_singers = len(singers)
