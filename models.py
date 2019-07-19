@@ -137,9 +137,12 @@ class SepNet(Model):
                                            name='input_placeholder')
 
         self.f0_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len),
-                                           name='guide_placeholder')
+                                           name='f0_placeholder')
 
-        self.f0_placeholder_onehot = tf.one_hot(indices=tf.cast(self.f0_placeholder, tf.int32), depth=config.num_f0)
+        self.f0_placeholder_onehot = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.num_f0),
+                                           name='f0_placeholder')
+
+        # self.f0_placeholder_onehot = tf.one_hot(indices=tf.cast(self.f0_placeholder, tf.int32), depth=config.num_f0)
 
         self.output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.output_features),
                                            name='output_placeholder')       
@@ -184,7 +187,7 @@ class SepNet(Model):
                 for conds, voc_out, f0_out in data_generator:
 
 
-                    final_loss, f0_loss, f0_acc, summary_str = self.train_model(conds, voc_out, f0_out, sess)
+                    final_loss, f0_loss, f0_acc, summary_str = self.train_model(conds, voc_out, f0_out, epoch, sess)
 
 
                     epoch_final_loss+=final_loss
@@ -240,14 +243,26 @@ class SepNet(Model):
             if (epoch + 1) % config.save_every == 0 or (epoch + 1) == config.num_epochs:
                 self.save_model(sess, epoch+1, config.log_dir)
 
-    def train_model(self, conds, voc_out, f0_out,sess):
+    def train_model(self, conds, voc_out, f0_out, epoch, sess):
         """
         Function to train the model for each epoch
         """
+        teach_train = np.random.rand(1)<0.5
 
-        feed_dict = {self.input_placeholder: conds, self.f0_placeholder: f0_out, self.output_placeholder: voc_out, self.is_train: True}
+        if epoch<700 or not teach_train:
 
-        _,_,final_loss, f0_loss, f0_acc = sess.run([self.final_train_function, self.f0_train_function, self.final_loss, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
+            feed_dict = {self.input_placeholder: conds, self.f0_placeholder_onehot: f0_out, self.output_placeholder: voc_out, self.f0_placeholder: np.argmax(f0_out, axis = -1), self.is_train: True}
+
+            _,_,final_loss, f0_loss, f0_acc = sess.run([self.final_train_function, self.f0_train_function, self.final_loss, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
+        else:
+            feed_dict = {self.input_placeholder: conds, self.f0_placeholder_onehot: f0_out, self.output_placeholder: voc_out, self.f0_placeholder: np.argmax(f0_out, axis = -1), self.is_train: True}
+            _, f0_loss, f0_acc = sess.run([self.f0_train_function, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
+
+            f0_in = sess.run(self.f0_probs, feed_dict = {self.input_placeholder: conds, self.is_train: False})
+
+            feed_dict = {self.input_placeholder: conds, self.f0_placeholder_onehot: f0_in, self.output_placeholder: voc_out, self.is_train: True}
+
+            _,final_loss = sess.run([self.final_train_function, self.final_loss], feed_dict=feed_dict)
 
         summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
@@ -257,7 +272,7 @@ class SepNet(Model):
         """
         Function to train the model for each epoch
         """
-        feed_dict = {self.input_placeholder: conds, self.f0_placeholder: f0_out, self.output_placeholder: voc_out, self.is_train: False}
+        feed_dict = {self.input_placeholder: conds, self.f0_placeholder_onehot: f0_out, self.output_placeholder: voc_out, self.f0_placeholder: np.argmax(f0_out, axis = -1), self.is_train: False}
 
         final_loss, f0_loss, f0_acc = sess.run([self.final_loss, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
 
@@ -306,10 +321,6 @@ class SepNet(Model):
         condi, feats = self.read_hdf5_file(file_name)
 
         out_feats = self.process_file(condi, sess)
-
-        import pdb;pdb.set_trace()
-
-
 
         self.plot_features(feats, out_feats)
 
@@ -369,26 +380,21 @@ class SepNet(Model):
 
         out_batches = []
 
+        out_f0 = []
+
         for in_batch_stft in in_batches_stft :
-            outs = []
-            guide = np.tile(np.linspace(0.0,1.0,config.max_phr_len ).reshape([1,config.max_phr_len,1]), [config.batch_size, 1,1])
-            guidy = np.zeros((config.batch_size, config.max_phr_len, 1))
-            inps = np.zeros((config.batch_size, config.max_phr_len, config.output_features))
-            for i in range(config.max_phr_len):
-                guidy = np.roll(guidy, -1, 1)
-                guidy[:, -1, :] = guide[:,i,:]
-                feed_dict = {self.cond_placeholder: in_batch_stft, self.input_placeholder: inps, self.guide_placeholder: guidy, self.is_train: False}
-                harm = sess.run(self.output, feed_dict=feed_dict)
-                outs.append(harm[:,-1,:])
-                inps = np.roll(inps, -1, 1)
-                inps[:,-1,:] = harm[:,-1,:]
-            outs = np.swapaxes(np.array(outs), 0,1)
-            out_batches.append(outs)
-        import pdb;pdb.set_trace()
-        out_batches = np.array(out_batches)
-        out_batches = utils.overlapadd(out_batches,nchunks_in)
-        outs = outs*(max_feat - min_feat) + min_feat
-        return np.array(outs)
+            f0_in = sess.run(self.f0_probs, feed_dict = {self.input_placeholder: in_batch_stft, self.is_train: False})
+            out_f0.append(f0_in)
+            feed_dict = {self.input_placeholder: in_batch_stft, self.f0_placeholder_onehot: f0_in, self.is_train: False}
+
+            output = sess.run(self.output, feed_dict = feed_dict)
+            out_batches.append(output)
+
+        out_batches = np.array(out_batches) *(max_feat-min_feat)+min_feat
+        out_batches = utils.overlapadd(out_batches, nchunks_in) 
+        out_f0 = utils.overlapadd(np.array(out_f0), nchunks_in) 
+
+        return out_batches
 
 
 
@@ -404,7 +410,7 @@ class SepNet(Model):
             self.f0_probs = tf.nn.softmax(self.f0_logits)
 
         with tf.variable_scope('Final_Model') as scope:
-            self.output = modules.full_network(self.input_placeholder, self.f0_probs, self.is_train)
+            self.output = modules.full_network(self.input_placeholder, self.f0_placeholder_onehot, self.is_train)
 
 
 

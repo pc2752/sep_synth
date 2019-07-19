@@ -113,9 +113,11 @@ def data_gen_sep(mode = 'Train', sec_mode = 0):
 
             feats[:,-2] = f0_nor
 
-            f0_quant = np.rint(f0_nor*config.num_f0) + 1
+            f0_quant = np.rint(f0_nor*(config.num_f0-2)) + 1
 
             f0_quant = f0_quant * (1-feats[:,-1]) 
+
+            f0_quant = one_hotize(f0_quant, config.num_f0)
 
             for j in range(config.samples_per_file):
 
@@ -125,7 +127,7 @@ def data_gen_sep(mode = 'Train', sec_mode = 0):
 
                 voc_out.append(feats[voc_idx:voc_idx+config.max_phr_len,:])
 
-                f0_out.append(f0_quant[voc_idx:voc_idx+config.max_phr_len])
+                f0_out.append(f0_quant[voc_idx:voc_idx+config.max_phr_len, :])
 
 
         mix_in = np.clip(np.array(mix_in), 0.0, 1.0)
@@ -438,7 +440,7 @@ def get_stats_phonems():
 
 def main():
     # gen_train_val()
-    # get_stats()
+    get_stats()
     gen = data_gen_sep('Train', sec_mode = 0)
     while True :
         start_time = time.time()
