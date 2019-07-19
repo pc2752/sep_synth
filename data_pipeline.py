@@ -71,6 +71,8 @@ def data_gen_sep(mode = 'Train', sec_mode = 0):
 
         voc_out = []
 
+        f0_out = []
+
 
         for i in range(max_files_to_process):
 
@@ -111,6 +113,10 @@ def data_gen_sep(mode = 'Train', sec_mode = 0):
 
             feats[:,-2] = f0_nor
 
+            f0_quant = np.rint(f0_nor*config.num_f0) + 1
+
+            f0_quant = f0_quant * (1-feats[:,-1]) 
+
             for j in range(config.samples_per_file):
 
                 voc_idx = np.random.randint(0,len(mix_stft)-config.max_phr_len)
@@ -119,11 +125,14 @@ def data_gen_sep(mode = 'Train', sec_mode = 0):
 
                 voc_out.append(feats[voc_idx:voc_idx+config.max_phr_len,:])
 
+                f0_out.append(f0_quant[voc_idx:voc_idx+config.max_phr_len,:])
+
 
         mix_in = np.clip(np.array(mix_in), 0.0, 1.0)
 
         voc_out = (np.array(voc_out) - min_feat)/(max_feat - min_feat)
 
+        f0_out = np.array(f0_out)
 
         yield mix_in, voc_out
 

@@ -128,7 +128,7 @@ class SepNet(Model):
         self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.output_features),
                                            name='input_placeholder')
 
-        self.guide_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 1),
+        self.f0_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 1),
                                            name='guide_placeholder')
 
         self.cond_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
@@ -169,15 +169,10 @@ class SepNet(Model):
             val_final_loss = 0
 
             with tf.variable_scope('Training'):
-                for conds, voc_out in data_generator:
+                for conds, voc_out, f0_out in data_generator:
 
-                    voc_in = np.roll(voc_out, 1, 1)
 
-                    voc_in[:,0,:] = 0
-
-                    voc_in = voc_in + np.random.normal(0,.5,(voc_in.shape)) * 0.4 
-
-                    final_loss, summary_str = self.train_model(conds, voc_out, voc_in, sess)
+                    final_loss, summary_str = self.train_model(conds, voc_out, f0_out, sess)
 
 
                     epoch_final_loss+=final_loss
