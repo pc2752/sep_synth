@@ -86,16 +86,18 @@ class SepNet(Model):
         """
 
         self.final_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'Final_Model')
+        self.f0_params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,scope = 'F0_Model')
 
         self.final_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
-
+        self.f0_optimizer = tf.train.AdamOptimizer(learning_rate = config.init_lr)
+        
         self.global_step = tf.Variable(0, name='global_step', trainable=False)
-
-
+        self.global_step_f0 = tf.Variable(0, name='f0_global_step', trainable=False)
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             self.final_train_function = self.final_optimizer.minimize(self.final_loss, global_step = self.global_step, var_list = self.final_params)
+            self.f0_train_function = self.f0_optimizer.minimize(self.f0_loss, global_step = self.global_step_f0, var_list = self.f0_params)
 
 
     def loss_function(self):
@@ -106,6 +108,9 @@ class SepNet(Model):
         # self.final_loss = tf.losses.mean_squared_error(self.output,self.output_placeholder )
         self.final_loss = tf.reduce_sum(tf.abs(self.output_placeholder- self.output))
 
+        self.f0_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.f0_placeholder_onehot, logits=self.f0_logits))
+
+        self.f0_acc = tf.metrics.accuracy(labels=self.f0_placeholder, predictions=self.f0_classes)
 
     def get_summary(self, sess, log_dir):
         """
@@ -114,6 +119,9 @@ class SepNet(Model):
 
 
         self.final_summary = tf.summary.scalar('final_loss', self.final_loss)
+        self.f0_summary = tf.summary.scalar('f0_loss', self.f0_loss)
+
+        self.f0_acc_summary = tf.summary.scalar('f0_accuracy', self.f0_acc[0])
 
         self.train_summary_writer = tf.summary.FileWriter(log_dir+'train/', sess.graph)
         self.val_summary_writer = tf.summary.FileWriter(log_dir+'val/', sess.graph)
@@ -128,7 +136,7 @@ class SepNet(Model):
         self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
                                            name='input_placeholder')
 
-        self.f0_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 1),
+        self.f0_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len),
                                            name='guide_placeholder')
 
         self.f0_placeholder_onehot = tf.one_hot(indices=tf.cast(self.f0_placeholder, tf.int32), depth=config.num_f0)
@@ -165,17 +173,23 @@ class SepNet(Model):
             batch_num = 0
             epoch_final_loss = 0
 
+            epoch_f0_loss = 0
+            epoch_f0_acc = 0
+
             val_final_loss = 0
+            val_f0_loss = 0
+            val_f0_acc = 0
 
             with tf.variable_scope('Training'):
                 for conds, voc_out, f0_out in data_generator:
 
 
-                    final_loss, summary_str = self.train_model(conds, voc_out, f0_out, sess)
+                    final_loss, f0_loss, f0_acc, summary_str = self.train_model(conds, voc_out, f0_out, sess)
 
 
                     epoch_final_loss+=final_loss
-
+                    epoch_f0_loss+=f0_loss
+                    epoch_f0_acc+=f0_acc
 
                     self.train_summary_writer.add_summary(summary_str, epoch)
                     self.train_summary_writer.flush()
@@ -186,22 +200,24 @@ class SepNet(Model):
 
                 epoch_final_loss = epoch_final_loss/batch_num
 
+                epoch_f0_loss = epoch_f0_loss/batch_num
+                epoch_f0_acc = epoch_f0_acc/batch_num
+
 
                 print_dict = {"Final Loss": epoch_final_loss}
-
+                print_dict["F0 Loss"] =  epoch_f0_loss
+                print_dict["F0 Accuracy"] =  epoch_f0_acc
 
             if (epoch + 1) % config.validate_every == 0:
                 batch_num = 0
                 with tf.variable_scope('Validation'):
-                    for conds, voc_out in val_generator:
+                    for conds, voc_out, f0_out in val_generator:
 
-                        voc_in = np.roll(voc_out, 1, 1)
-
-                        voc_in[:,0,:] = 0
-
-                        final_loss, summary_str= self.validate_model(conds, voc_out, voc_in, sess)
+                        final_loss, f0_loss, f0_acc, summary_str = self.validate_model(conds, voc_out, f0_out, sess)
                         val_final_loss+=final_loss
 
+                        val_f0_loss+=f0_loss
+                        val_f0_acc+=f0_acc
 
                         self.val_summary_writer.add_summary(summary_str, epoch)
                         self.val_summary_writer.flush()
@@ -210,9 +226,12 @@ class SepNet(Model):
                         utils.progress(batch_num, config.batches_per_epoch_val, suffix='validation done')
 
                     val_final_loss = val_final_loss/batch_num
-
+                    val_f0_loss = val_f0_loss/batch_num
+                    val_f0_acc = val_f0_acc/batch_num
 
                     print_dict["Val Final Loss"] =  val_final_loss
+                    print_dict["Val F0 Loss"] =  val_f0_loss
+                    print_dict["Val F0 Accuracy"] =  val_f0_acc
 
 
             end_time = time.time()
@@ -221,33 +240,30 @@ class SepNet(Model):
             if (epoch + 1) % config.save_every == 0 or (epoch + 1) == config.num_epochs:
                 self.save_model(sess, epoch+1, config.log_dir)
 
-    def train_model(self, conds, voc_out, voc_in,sess):
+    def train_model(self, conds, voc_out, f0_out,sess):
         """
         Function to train the model for each epoch
         """
-        guide = np.tile(np.linspace(0.0,1.0,config.max_phr_len ).reshape([1,config.max_phr_len,1]), [config.batch_size, 1,1])
 
-        feed_dict = {self.input_placeholder: voc_in, self.output_placeholder: voc_out, self.cond_placeholder: conds, self.guide_placeholder:guide, self.is_train: True}
+        feed_dict = {self.input_placeholder: conds, self.f0_placeholder: f0_out, self.output_placeholder: voc_out, self.is_train: True}
 
-        _,final_loss= sess.run([self.final_train_function, self.final_loss], feed_dict=feed_dict)
+        _,_,final_loss, f0_loss, f0_acc = sess.run([self.final_train_function, self.f0_train_function, self.final_loss, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
 
         summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
-        return final_loss, summary_str
+        return final_loss, f0_loss, f0_acc[0], summary_str
 
-    def validate_model(self,conds, voc_out,voc_in, sess):
+    def validate_model(self,conds, voc_out,f0_out, sess):
         """
         Function to train the model for each epoch
         """
-        guide = np.tile(np.linspace(0.0,1.0,config.max_phr_len ).reshape([1,config.max_phr_len,1]), [config.batch_size, 1,1])
+        feed_dict = {self.input_placeholder: conds, self.f0_placeholder: f0_out, self.output_placeholder: voc_out, self.is_train: False}
 
-        feed_dict = {self.input_placeholder: voc_in, self.output_placeholder: voc_out, self.cond_placeholder: conds, self.guide_placeholder:guide, self.is_train: False}
-
-        final_loss= sess.run(self.final_loss, feed_dict=feed_dict)
+        final_loss, f0_loss, f0_acc = sess.run([self.final_loss, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
 
         summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
-        return final_loss, summary_str
+        return final_loss, f0_loss, f0_acc[0], summary_str
 
 
 
@@ -383,10 +399,12 @@ class SepNet(Model):
 
         """
         with tf.variable_scope('F0_Model') as scope:
-            self.f0_output = modules.f0_network(self.input_placeholder, self.cond_placeholder,self.guide_placeholder, self.is_train)
+            self.f0_logits = modules.f0_network(self.input_placeholder, self.is_train)
+            self.f0_classes = tf.argmax(self.f0_logits, axis=-1)
+            self.f0_probs = tf.nn.softmax(self.f0_logits)
 
         with tf.variable_scope('Final_Model') as scope:
-            self.output = modules.full_network(self.input_placeholder, self.f0_output, self.is_train)
+            self.output = modules.full_network(self.input_placeholder, self.f0_probs, self.is_train)
 
 
 

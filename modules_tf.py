@@ -414,7 +414,7 @@ def full_network(f0, inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len , 1, -1])
 
-    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.filters * 2
+    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.filters
         , name = "S_in"), training = is_train)
 
     # encoded = inputs

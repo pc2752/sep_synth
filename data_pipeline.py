@@ -125,7 +125,7 @@ def data_gen_sep(mode = 'Train', sec_mode = 0):
 
                 voc_out.append(feats[voc_idx:voc_idx+config.max_phr_len,:])
 
-                f0_out.append(f0_quant[voc_idx:voc_idx+config.max_phr_len,:])
+                f0_out.append(f0_quant[voc_idx:voc_idx+config.max_phr_len])
 
 
         mix_in = np.clip(np.array(mix_in), 0.0, 1.0)
