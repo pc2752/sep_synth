@@ -111,7 +111,7 @@ def data_gen_sep(mode = 'Train', sec_mode = 0):
 
             f0_nor = (f0 - min_feat[-2])/(max_feat[-2]-min_feat[-2])
 
-            feats[:,-2] = f0_nor
+            feats[:,-2] = f0
 
             f0_quant = np.rint(f0_nor*(config.num_f0-2)) + 1
 
