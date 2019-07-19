@@ -171,11 +171,13 @@ def wavenet_block(inputs, conditioning, is_train, dilation_rate = 2, kernel_size
     return skip, residual
 
 
-def wave_archi(inputs, backing, is_train):
+def wave_archi(inputs, backing, guide, is_train):
 
     back_embedding = embedding_network(backing, is_train)
 
-    back_embedding = tf.reshape(back_embedding,[config.batch_size,1,-1])
+    back_embedding = tf.tile(tf.reshape(back_embedding,[config.batch_size,1,-1]),[1,config.max_phr_len,1])
+
+    back_embedding = tf.concat([back_embedding, guide], axis = -1)
 
     inputs = tf.pad(inputs, [[0,0],[config.first_conv -1 ,0],[0,0]],"CONSTANT")
 

@@ -128,6 +128,9 @@ class SepNet(Model):
         self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.output_features),
                                            name='input_placeholder')
 
+        self.guide_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 1),
+                                           name='guide_placeholder')
+
         self.cond_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
                                            name='cond_placeholder')
 
@@ -228,7 +231,9 @@ class SepNet(Model):
         """
         Function to train the model for each epoch
         """
-        feed_dict = {self.input_placeholder: voc_in, self.output_placeholder: voc_out, self.cond_placeholder: conds, self.is_train: True}
+        guide = np.tile(np.linspace(0.0,1.0,config.max_phr_len ).reshape([1,config.max_phr_len,1]), [config.batch_size, 1,1])
+
+        feed_dict = {self.input_placeholder: voc_in, self.output_placeholder: voc_out, self.cond_placeholder: conds, self.guide_placeholder:guide, self.is_train: True}
 
         _,final_loss= sess.run([self.final_train_function, self.final_loss], feed_dict=feed_dict)
 
@@ -240,7 +245,9 @@ class SepNet(Model):
         """
         Function to train the model for each epoch
         """
-        feed_dict = {self.input_placeholder: voc_in, self.output_placeholder: voc_out, self.cond_placeholder: conds, self.is_train: False}
+        guide = np.tile(np.linspace(0.0,1.0,config.max_phr_len ).reshape([1,config.max_phr_len,1]), [config.batch_size, 1,1])
+
+        feed_dict = {self.input_placeholder: voc_in, self.output_placeholder: voc_out, self.cond_placeholder: conds, self.guide_placeholder:guide, self.is_train: False}
 
         final_loss= sess.run(self.final_loss, feed_dict=feed_dict)
 
@@ -289,6 +296,10 @@ class SepNet(Model):
         condi, feats = self.read_hdf5_file(file_name)
 
         out_feats = self.process_file(condi, sess)
+
+        import pdb;pdb.set_trace()
+
+
 
         self.plot_features(feats, out_feats)
 
@@ -350,15 +361,20 @@ class SepNet(Model):
 
         for in_batch_stft in in_batches_stft :
             outs = []
+            guide = np.tile(np.linspace(0.0,1.0,config.max_phr_len ).reshape([1,config.max_phr_len,1]), [config.batch_size, 1,1])
+            guidy = np.zeros((config.batch_size, config.max_phr_len, 1))
             inps = np.zeros((config.batch_size, config.max_phr_len, config.output_features))
             for i in range(config.max_phr_len):
-                feed_dict = {self.cond_placeholder: in_batch_stft, self.input_placeholder: inps, self.is_train: False}
+                guidy = np.roll(guidy, -1, 1)
+                guidy[:, -1, :] = guide[:,i,:]
+                feed_dict = {self.cond_placeholder: in_batch_stft, self.input_placeholder: inps, self.guide_placeholder: guidy, self.is_train: False}
                 harm = sess.run(self.output, feed_dict=feed_dict)
                 outs.append(harm[:,-1,:])
                 inps = np.roll(inps, -1, 1)
                 inps[:,-1,:] = harm[:,-1,:]
             outs = np.swapaxes(np.array(outs), 0,1)
             out_batches.append(outs)
+        import pdb;pdb.set_trace()
         out_batches = np.array(out_batches)
         out_batches = utils.overlapadd(out_batches,nchunks_in)
         outs = outs*(max_feat - min_feat) + min_feat
@@ -374,7 +390,7 @@ class SepNet(Model):
         """
 
         with tf.variable_scope('Final_Model') as scope:
-            self.output = modules.wave_archi(self.input_placeholder, self.cond_placeholder, self.is_train)
+            self.output = modules.wave_archi(self.input_placeholder, self.cond_placeholder,self.guide_placeholder, self.is_train)
 
 
 
