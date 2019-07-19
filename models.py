@@ -125,14 +125,13 @@ class SepNet(Model):
         Depending on the mode, can return placeholders for either just the generator or both the generator and discriminator.
         """
 
-        self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.output_features),
+        self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
                                            name='input_placeholder')
 
         self.f0_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, 1),
                                            name='guide_placeholder')
 
-        self.cond_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
-                                           name='cond_placeholder')
+        self.f0_placeholder_onehot = tf.one_hot(indices=tf.cast(self.f0_placeholder, tf.int32), depth=config.num_f0)
 
         self.output_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.output_features),
                                            name='output_placeholder')       
@@ -383,9 +382,11 @@ class SepNet(Model):
         Defined in modules.
 
         """
+        with tf.variable_scope('F0_Model') as scope:
+            self.f0_output = modules.f0_network(self.input_placeholder, self.cond_placeholder,self.guide_placeholder, self.is_train)
 
         with tf.variable_scope('Final_Model') as scope:
-            self.output = modules.wave_archi(self.input_placeholder, self.cond_placeholder,self.guide_placeholder, self.is_train)
+            self.output = modules.full_network(self.input_placeholder, self.f0_output, self.is_train)
 
 
 

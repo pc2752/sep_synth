@@ -134,7 +134,7 @@ def data_gen_sep(mode = 'Train', sec_mode = 0):
 
         f0_out = np.array(f0_out)
 
-        yield mix_in, voc_out
+        yield mix_in, voc_out, f0_out
 
 def data_gen_full(mode = 'Train', sec_mode = 0):
 

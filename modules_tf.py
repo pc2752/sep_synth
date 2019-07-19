@@ -406,11 +406,11 @@ def nr_wavenet(inputs, num_block = config.wavenet_layers):
 
 
 
-def full_network(f0, phos,  singer_label, is_train):
+def full_network(f0, inputs, is_train):
 
-    singer_label = tf.tile(tf.reshape(singer_label,[config.batch_size,1,-1]),[1,config.max_phr_len,1])
+    # singer_label = tf.tile(tf.reshape(singer_label,[config.batch_size,1,-1]),[1,config.max_phr_len,1])
 
-    inputs = tf.concat([f0, phos,singer_label], axis = -1)
+    inputs = tf.concat([f0, inputs], axis = -1)
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len , 1, -1])
 
