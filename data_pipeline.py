@@ -33,11 +33,15 @@ def gen_train_val():
     utils.list_to_file(train_list,config.log_dir+'train_files.txt')
 
 
-def data_gen_pho(mode = 'Train', sec_mode = 0):
+def data_gen_sep(mode = 'Train', sec_mode = 0):
 
-    mix_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[1] not in ['ADIZ', 'JLEE', 'JTAN', 'KENN']]
+    voc_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and not x.startswith('casas') and not x in config.do_not_use]
 
-    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[1] in ['ADIZ', 'JLEE', 'JTAN', 'KENN'] and not x.startswith('nus_KENN_read')]
+    back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x in config.do_not_use and not x.startswith('med')]
+
+    train_list = voc_list[:int(len(voc_list)*0.9)]
+    
+    val_list = voc_list[int(len(voc_list)*0.9):]
 
     stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
 
@@ -55,88 +59,83 @@ def data_gen_pho(mode = 'Train', sec_mode = 0):
 
     if mode == "Train":
         num_batches = config.batches_per_epoch_train
-        file_list = mix_list
+        file_list = train_list
 
     else: 
         num_batches = config.batches_per_epoch_val
         file_list = val_list
 
-
-
     for k in range(num_batches):
-        pho_targs = []
 
         mix_in = []
+
+        voc_out = []
+
+
         for i in range(max_files_to_process):
 
 
             voc_index = np.random.randint(0,len(file_list))
+
             voc_to_open = file_list[voc_index]
 
-
-
-
-            voc_file = h5py.File(config.voice_dir+voc_to_open, "r")
-
-
-            voc_stft = np.array(voc_file['voc_stft'])
-
-
-            if voc_to_open.startswith('nus'):
-                if not  "phonemes" in voc_file:
-                    print(voc_file)
-                    Flag = False
-                else: 
-                    Flag = True
-                    pho_target = np.array(voc_file["phonemes"])
-                    pho_target = [config.phonemas_all.index(config.phonemas[x]) for x in pho_target]
-                    # singer_name = voc_to_open.split('_')[1]
-                    # singer_index = config.singers.index(singer_name)
+            if voc_to_open in [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x in config.do_not_use]:
+                with h5py.File(config.backing_dir+voc_to_open, "r") as mix_file:
+                    mix_stft = np.array(mix_file['mix_stft'])
+                with h5py.File(config.voice_dir+voc_to_open, "r") as voc_file:
+                    feats = np.array(voc_file['feats'])
             else:
-                Flag = False
+                with h5py.File(config.voice_dir+voc_to_open, "r") as voc_file:
+                    voc_stft = np.array(voc_file['voc_stft'])
+                    feats = np.array(voc_file['feats'])
 
+                back_index = np.random.randint(0,len(back_list))
 
+                back_to_open = back_list[back_index]
 
+                with h5py.File(config.backing_dir+back_to_open, "r") as back_file:
+                    back_stft = np.array(back_file['back_stft'])
+                    mix_stft = (voc_stft[:len(back_stft)] + back_stft[:len(voc_stft)])/2
+
+            mix_stft = np.clip(mix_stft, 1.0, 0.0)
+
+            feats = feats[:len(mix_stft)]
+
+            f0 = feats[:,-2]
+
+            med = np.median(f0[f0 > 0])
+
+            f0[f0==0] = med
+
+            f0_nor = (f0 - min_feat[-2])/(max_feat[-2]-min_feat[-2])
+
+            feats[:,-2] = f0_nor
 
             for j in range(config.samples_per_file):
-                    voc_idx = np.random.randint(0,len(voc_stft)-config.max_phr_len)
-                    # bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
-                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:]
-                    # *np.clip(np.random.rand(1),0.5,0.9) + back_stft[bac_idx:bac_idx+config.max_phr_len,:]*np.clip(np.random.rand(1),0.0,0.9) + np.random.rand(config.max_phr_len,config.input_features)*np.clip(np.random.rand(1),0.0,config.noise_threshold)
-                    mix_in.append(mix_stft)
 
-                    if Flag:
-                        pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
+                voc_idx = np.random.randint(0,len(mix_stft)-config.max_phr_len)
 
-            mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
+                mix_in.append(mix_stft[voc_idx:voc_idx+config.max_phr_len,:])
 
-            assert mix_in.max()<=1.0 and mix_in.min()>=0
-
-            yield mix_in, pho_targs
+                voc_out.append(feats[voc_idx:voc_idx+config.max_phr_len,:])
 
 
+        mix_in = np.clip(np.array(mix_in), 0.0, 1.0)
+
+        voc_out = (np.array(voc_out) - min_feat)/(max_feat - min_feat)
+
+
+        yield mix_in, voc_out
 
 def data_gen_full(mode = 'Train', sec_mode = 0):
 
-    casas_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('casas') and not x in config.do_not_use]
+    voc_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and not x in config.do_not_use]
 
-    nus_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[3] not in ['15.hdf5','20.hdf5'] and not x.startswith('nus_KENN_read') ]
+    back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x in config.do_not_use]
 
-    pho_list = nus_list 
-    # + casas_list[:int(0.8*len(casas_list))]
-
-    mix_list_med = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('med') and not x.split('_')[1] in ['MusicDelta', 'ClaraBerryAndWooldog','ClaraBerryAndWooldog','CelestialShore', 'Schumann', 'Mozart', 'NightPanther', 'Debussy', 'HeladoNegro']]
-
-    mix_list = pho_list + mix_list_med[:int(0.8*len(mix_list_med))]
-
-    back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x.startswith('._') and not x.startswith('mir') and not x.startswith('med')]
-
-    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[3] in ['15.hdf5','20.hdf5']  and not x.startswith('nus_KENN_read')]
-     # + casas_list[int(0.8)*len(casas_list):]
-    # + mix_list_med[int(0.8*len(mix_list_med)):]
-
-    # import pdb;pdb.set_trace()
-
+    train_list = voc_list[:len(voc_list)*0.9]
+    
+    val_list = voc_list[len(voc_list)*0.9:]
 
     stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
 
@@ -154,7 +153,7 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
     if mode == "Train":
         num_batches = config.batches_per_epoch_train
-        file_list = pho_list
+        file_list = train_list
 
     else: 
         num_batches = config.batches_per_epoch_val
@@ -294,9 +293,9 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
 
 def get_stats():
-    voc_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') or x.startswith('med') or x.startswith('casas') and not x.startswith('nus_KENN_read') ]
+    voc_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and not x.startswith('casas') and not x in config.do_not_use]
 
-    back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x.startswith('._') and not x.startswith('mir') and not x.startswith('med')]
+    back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x in config.do_not_use]
 
     do_no_use = []
 
@@ -308,6 +307,8 @@ def get_stats():
 
     max_mix = np.zeros(513)
     min_mix = np.ones(513)*1000    
+
+    count = 0
 
     for voc_to_open in voc_list:
 
@@ -328,69 +329,74 @@ def get_stats():
         if np.isnan(feats).any():
             do_no_use.append(voc_to_open)
 
-    #     maxi_voc_stft = np.array(voc_stft).max(axis=0)
+        maxi_voc_stft = np.array(voc_stft).max(axis=0)
 
-    #     # if np.array(feats).min()<0:
-    #     #     import pdb;pdb.set_trace()
+        for i in range(len(maxi_voc_stft)):
+            if maxi_voc_stft[i]>max_voc[i]:
+                max_voc[i] = maxi_voc_stft[i]
 
-    #     for i in range(len(maxi_voc_stft)):
-    #         if maxi_voc_stft[i]>max_voc[i]:
-    #             max_voc[i] = maxi_voc_stft[i]
+        mini_voc_stft = np.array(voc_stft).min(axis=0)
 
-    #     mini_voc_stft = np.array(voc_stft).min(axis=0)
+        for i in range(len(mini_voc_stft)):
+            if mini_voc_stft[i]<min_voc[i]:
+                min_voc[i] = mini_voc_stft[i]
 
-    #     for i in range(len(mini_voc_stft)):
-    #         if mini_voc_stft[i]<min_voc[i]:
-    #             min_voc[i] = mini_voc_stft[i]
+        maxi_voc_feat = np.array(feats).max(axis=0)
 
-    #     maxi_voc_feat = np.array(feats).max(axis=0)
+        for i in range(len(maxi_voc_feat)):
+            if maxi_voc_feat[i]>max_feat[i]:
+                max_feat[i] = maxi_voc_feat[i]
 
-    #     for i in range(len(maxi_voc_feat)):
-    #         if maxi_voc_feat[i]>max_feat[i]:
-    #             max_feat[i] = maxi_voc_feat[i]
+        mini_voc_feat = np.array(feats).min(axis=0)
 
-    #     mini_voc_feat = np.array(feats).min(axis=0)
+        for i in range(len(mini_voc_feat)):
+            if mini_voc_feat[i]<min_feat[i]:
+                min_feat[i] = mini_voc_feat[i]  
 
-    #     for i in range(len(mini_voc_feat)):
-    #         if mini_voc_feat[i]<min_feat[i]:
-    #             min_feat[i] = mini_voc_feat[i]   
+        count+=1 
+        utils.progress(count,len(voc_list), suffix = 'voc list done')
 
-    # for voc_to_open in back_list:
+    count = 0
 
-    #     voc_file = h5py.File(config.backing_dir+voc_to_open, "r")
+    for voc_to_open in back_list:
 
-    #     voc_stft = voc_file["back_stft"]
+        voc_file = h5py.File(config.backing_dir+voc_to_open, "r")
 
-    #     maxi_voc_stft = np.array(voc_stft).max(axis=0)
+        if not 'back_stft' in voc_file:
+            voc_stft = voc_file["mix_stft"]
+        else:
 
-    #     # if np.array(feats).min()<0:
-    #     #     import pdb;pdb.set_trace()
+            voc_stft = voc_file["back_stft"]
 
-    #     for i in range(len(maxi_voc_stft)):
-    #         if maxi_voc_stft[i]>max_mix[i]:
-    #             max_mix[i] = maxi_voc_stft[i]
+        maxi_voc_stft = np.array(voc_stft).max(axis=0)
 
-    #     mini_voc_stft = np.array(voc_stft).min(axis=0)
+        for i in range(len(maxi_voc_stft)):
+            if maxi_voc_stft[i]>max_mix[i]:
+                max_mix[i] = maxi_voc_stft[i]
 
-    #     for i in range(len(mini_voc_stft)):
-    #         if mini_voc_stft[i]<min_mix[i]:
-    #             min_mix[i] = mini_voc_stft[i]
+        mini_voc_stft = np.array(voc_stft).min(axis=0)
 
-    # hdf5_file = h5py.File(config.stat_dir+'stats.hdf5', mode='w')
+        for i in range(len(mini_voc_stft)):
+            if mini_voc_stft[i]<min_mix[i]:
+                min_mix[i] = mini_voc_stft[i]
+        count+=1
+        utils.progress(count,len(back_list), suffix = 'back list done')
 
-    # hdf5_file.create_dataset("feats_maximus", [66], np.float32) 
-    # hdf5_file.create_dataset("feats_minimus", [66], np.float32)   
-    # hdf5_file.create_dataset("voc_stft_maximus", [513], np.float32) 
-    # hdf5_file.create_dataset("voc_stft_minimus", [513], np.float32)   
-    # hdf5_file.create_dataset("back_stft_maximus", [513], np.float32) 
-    # hdf5_file.create_dataset("back_stft_minimus", [513], np.float32)   
+    hdf5_file = h5py.File(config.stat_dir+'stats.hdf5', mode='w')
 
-    # hdf5_file["feats_maximus"][:] = max_feat
-    # hdf5_file["feats_minimus"][:] = min_feat
-    # hdf5_file["voc_stft_maximus"][:] = max_voc
-    # hdf5_file["voc_stft_minimus"][:] = min_voc
-    # hdf5_file["back_stft_maximus"][:] = max_mix
-    # hdf5_file["back_stft_minimus"][:] = min_mix
+    hdf5_file.create_dataset("feats_maximus", [66], np.float32) 
+    hdf5_file.create_dataset("feats_minimus", [66], np.float32)   
+    hdf5_file.create_dataset("voc_stft_maximus", [513], np.float32) 
+    hdf5_file.create_dataset("voc_stft_minimus", [513], np.float32)   
+    hdf5_file.create_dataset("back_stft_maximus", [513], np.float32) 
+    hdf5_file.create_dataset("back_stft_minimus", [513], np.float32)   
+
+    hdf5_file["feats_maximus"][:] = max_feat
+    hdf5_file["feats_minimus"][:] = min_feat
+    hdf5_file["voc_stft_maximus"][:] = max_voc
+    hdf5_file["voc_stft_minimus"][:] = min_voc
+    hdf5_file["back_stft_maximus"][:] = max_mix
+    hdf5_file["back_stft_minimus"][:] = min_mix
 
     import pdb;pdb.set_trace()
 
@@ -424,10 +430,10 @@ def get_stats_phonems():
 def main():
     # gen_train_val()
     # get_stats()
-    gen = data_gen_full('val', sec_mode = 0)
+    gen = data_gen_sep('Train', sec_mode = 0)
     while True :
         start_time = time.time()
-        mix_in, singer_targs, voc_out, f0_out, pho_targs = next(gen)
+        mix_in, voc_out = next(gen)
         print(time.time()-start_time)
 
     #     plt.subplot(411)

@@ -8,12 +8,12 @@ import numpy as np
 import mir_eval
 
 def train(_):
-    model = models.MultiSynth()
+    model = models.SepNet()
     model.train()
 
-def eval_hdf5_file(file_name, file_name_singer):
-    model = models.MultiSynth()
-    model.test_file_hdf5(file_name, file_name_singer)
+def eval_hdf5_file(file_name):
+    model = models.SepNet()
+    model.test_file_hdf5(file_name)
 
 if __name__ == '__main__':
     if len(sys.argv)<2 or sys.argv[1] == '-help' or sys.argv[1] == '--help' or sys.argv[1] == '--h' or sys.argv[1] == '-h':
@@ -31,23 +31,13 @@ if __name__ == '__main__':
         elif sys.argv[1] == '-e' or sys.argv[1] == '--e' or sys.argv[1] == '--eval' or sys.argv[1] == '-eval':
             if len(sys.argv)<3:
                 print("Please give a file to evaluate")
-                print([x for x in os.listdir(config.voice_dir) if x.startswith('nus') or x.startswith('casas') or x.startswith('med')])
+                print([x for x in os.listdir(config.voice_dir) if x.startswith('med') or x.startswith('ikala') and not x in config.do_not_use])
             else:
                 file_name = sys.argv[2]
                 if not file_name.endswith('.hdf5'):
                     file_name = file_name+'.hdf5'
-                if not file_name in [x for x in os.listdir(config.voice_dir) if x.startswith('nus') or x.startswith('casas') or x.startswith('med')]:
+                if not file_name in [x for x in os.listdir(config.voice_dir) if x.startswith('med') or x.startswith('ikala')  and not x in config.do_not_use]:
                     print("Currently only supporting hdf5 files which are in the dataset, will be expanded later.")
-                    print([x for x in os.listdir(config.voice_dir) if x.startswith('nus' )or x.startswith('casas') or x.startswith('med')])
+                    print([x for x in os.listdir(config.voice_dir) if x.startswith('med') or x.startswith('ikala') and not x in config.do_not_use])
                 else:
-                    if len(sys.argv)<4:
-                        print("Synthesizing with same singer.")
-                        eval_hdf5_file(file_name, file_name)
-                    else:
-                        file_name_singer = sys.argv[3]
-                        if not file_name_singer in [x for x in os.listdir(config.voice_dir) if x.startswith('nus') or x.startswith('casas') or x.startswith('med')]:
-                            print("Currently only supporting hdf5 files which are in the dataset, will be expanded later.")
-                            print([x for x in os.listdir(config.voice_dir) if x.startswith('nus' )or x.startswith('casas') or x.startswith('med')])
-                        else:
-                            print("Synthesizing second singer.")
-                            eval_hdf5_file(file_name, file_name_singer)
+                    eval_hdf5_file(file_name)
