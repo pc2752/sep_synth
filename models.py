@@ -17,6 +17,14 @@ import soundfile as sf
 import matplotlib.pyplot as plt
 from scipy.ndimage import filters
 
+
+def one_hotize(inp, max_index):
+
+
+    output = np.eye(max_index)[inp.astype(int)]
+
+    return output
+
 class Model(object):
     def __init__(self):
         self.get_placeholders()
@@ -309,8 +317,13 @@ class SepNet(Model):
 
         f0_nor = (f0 - min_feat[-2])/(max_feat[-2]-min_feat[-2])
 
-        
-        return np.clip(mix_stft, 0.0, 1.0), feats
+        f0_quant = np.rint(f0_nor*(config.num_f0-2)) + 1
+
+        f0_quant = f0_quant * (1-feats[:,-1]) 
+
+        f0_quant = one_hotize(f0_quant, config.num_f0)
+
+        return np.clip(mix_stft, 0.0, 1.0), feats, f0_quant
 
     def test_file_hdf5(self, file_name):
         """
@@ -318,9 +331,9 @@ class SepNet(Model):
         """
         sess = tf.Session()
         self.load_model(sess, log_dir = config.log_dir)
-        condi, feats = self.read_hdf5_file(file_name)
+        condi, feats, f0_quant = self.read_hdf5_file(file_name)
 
-        out_feats = self.process_file(condi, sess)
+        out_feats = self.process_file(condi, f0_quant, sess)
 
         self.plot_features(feats, out_feats)
 
@@ -364,7 +377,7 @@ class SepNet(Model):
         plt.show()
 
 
-    def process_file(self, condi, sess):
+    def process_file(self, condi, f0_quant, sess):
 
         stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
 
@@ -377,15 +390,16 @@ class SepNet(Model):
         
 
         in_batches_stft, nchunks_in = utils.generate_overlapadd(condi)
+        in_batches_f0, nchunks_in = utils.generate_overlapadd(f0_quant)
 
         out_batches = []
 
         out_f0 = []
 
-        for in_batch_stft in in_batches_stft :
+        for in_batch_stft, in_f0 in zip(in_batches_stft, in_batches_f0) :
             f0_in = sess.run(self.f0_probs, feed_dict = {self.input_placeholder: in_batch_stft, self.is_train: False})
             out_f0.append(f0_in)
-            feed_dict = {self.input_placeholder: in_batch_stft, self.f0_placeholder_onehot: f0_in, self.is_train: False}
+            feed_dict = {self.input_placeholder: in_batch_stft, self.f0_placeholder_onehot: in_f0, self.is_train: False}
 
             output = sess.run(self.output, feed_dict = feed_dict)
             out_batches.append(output)

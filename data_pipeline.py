@@ -81,7 +81,9 @@ def data_gen_sep(mode = 'Train', sec_mode = 0):
 
             voc_to_open = file_list[voc_index]
 
-            if voc_to_open in [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x in config.do_not_use]:
+            aug = np.random.rand(1)<0.5
+
+            if voc_to_open in [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x in config.do_not_use] and not aug:
                 with h5py.File(config.backing_dir+voc_to_open, "r") as mix_file:
                     mix_stft = np.array(mix_file['mix_stft'])
                 with h5py.File(config.voice_dir+voc_to_open, "r") as voc_file:
