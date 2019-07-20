@@ -386,7 +386,7 @@ class MultiSynth(Model):
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
-            self.final_train_function = self.final_optimizer.minimize(self.final_loss, global_step = self.global_step, var_list = self.final_params)
+            self.final_train_function = self.final_optimizer.minimize(self.final_loss, global_step = self.global_step)
             self.pho_train_function = self.pho_optimizer.minimize(self.pho_loss, global_step = self.global_step_pho, var_list = self.pho_params)
             self.f0_train_function = self.f0_optimizer.minimize(self.f0_loss, global_step = self.global_step_f0, var_list = self.f0_params)
             self.singer_train_function = self.singer_optimizer.minimize(self.singer_loss, global_step = self.global_step_singer, var_list = self.singer_params)
@@ -414,7 +414,7 @@ class MultiSynth(Model):
 
         self.f0_acc = tf.metrics.accuracy(labels=self.f0_labels , predictions=self.f0_classes)
 
-        self.final_loss = tf.reduce_mean(tf.abs(self.output_placeholder- self.output))
+        self.final_loss = tf.reduce_mean(tf.abs(self.output_placeholder- self.output)) + self.pho_loss + self.singer_loss + self.f0_loss
         # tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.output_placeholder, logits = self.output)) 
         # tf.reduce_sum(tf.abs(self.input_placeholder- self.output))
         # 
@@ -627,13 +627,13 @@ class MultiSynth(Model):
         """
         feed_dict = {self.input_placeholder: mix_in,self.input_placeholder_singer: mix_in, self.singer_labels: singer_targs, self.output_placeholder: voc_out, self.f0_labels: f0_out, self.phoneme_labels: pho_targs, self.is_train: True}
 
-        if epoch<1000:
+        # if epoch<1000:
 
-            _,_, _, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc = sess.run(
-                [self.pho_train_function, self.f0_train_function, self.singer_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
-        else:
-            _, _, _, _, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc  = sess.run(
-                [ self.singer_train_function, self.final_train_function, self.pho_train_function, self.f0_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
+        #     _,_, _, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc = sess.run(
+        #         [self.pho_train_function, self.f0_train_function, self.singer_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
+        # else:
+        _, final_loss,  singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc  = sess.run(
+            [self.final_train_function, self.final_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
 
         summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
