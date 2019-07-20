@@ -131,8 +131,8 @@ num_epochs = 2500
 batches_per_epoch_train = 100
 batches_per_epoch_val = 10
 
-batch_size = 30
-samples_per_file = 6
+batch_size = 15
+samples_per_file = 5
 input_features = 513
 
 
@@ -154,7 +154,7 @@ hoptime = 5.80498866
 
 noise = 0.05
 
-wavenet_layers = 7
+wavenet_layers = 9
 rec_field = 2**wavenet_layers
 wavenet_filters = 64
 

@@ -414,7 +414,8 @@ class MultiSynth(Model):
 
         self.f0_acc = tf.metrics.accuracy(labels=self.f0_labels , predictions=self.f0_classes)
 
-        self.final_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.output_placeholder, logits = self.output)) 
+        self.final_loss = tf.reduce_mean(tf.abs(self.output_placeholder- self.output))
+        # tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.output_placeholder, logits = self.output)) 
         # tf.reduce_sum(tf.abs(self.input_placeholder- self.output))
         # 
         # + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.wave_placeholder, logits = self.output_wav))

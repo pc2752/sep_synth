@@ -237,24 +237,29 @@ def nr_wavenet_block(inputs, dilation_rate = 2, name = "name"):
 
     con_pad_forward = tf.pad(inputs, [[0,0],[dilation_rate,dilation_rate],[0,0]],"CONSTANT")
 
-    con_sig_forward = tf.layers.conv1d(con_pad_forward, config.wavenet_filters, 3, dilation_rate = dilation_rate, padding = 'valid', name = name+"_1")
+    con_sig_forward = tf.layers.conv1d(con_pad_forward, config.filters, 3, dilation_rate = dilation_rate, padding = 'valid', name = name+"_1")
 
     sig = tf.sigmoid(con_sig_forward)
 
-    con_tanh_forward = tf.layers.conv1d(con_pad_forward, config.wavenet_filters, 3, dilation_rate = dilation_rate, padding = 'valid', name = name+"_2")
+    con_tanh_forward = tf.layers.conv1d(con_pad_forward, config.filters, 3, dilation_rate = dilation_rate, padding = 'valid', name = name+"_2")
 
     tanh = tf.tanh(con_tanh_forward)
 
     outputs = tf.multiply(sig,tanh)
 
-    skip = tf.layers.conv1d(outputs,config.wavenet_filters,1, name = name+"_3")
+    skip = tf.layers.conv1d(outputs,config.filters,1, name = name+"_3")
 
     residual = skip + inputs
 
     return skip, residual
 
 def wave_archi(inputs):
+
+    inputs = tf.squeeze(inputs)
+
     prenet_out = tf.layers.dense(inputs, config.filters, name = "Phone1")
+
+
 
     receptive_field = 2**config.wavenet_layers
 
@@ -275,9 +280,8 @@ def wave_archi(inputs):
 
     output = tf.nn.relu(output)
 
-    output = tf.layers.conv1d(output,config.filters,1, name = "P_F_2")
 
-    return output
+    return tf.reshape(output, [config.batch_size, config.max_phr_len, 1, -1])
 
 
 def encoder_conv_block(inputs, layer_num, is_train, num_filters = config.filters):
@@ -372,10 +376,10 @@ def phone_network(inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
 
-    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
+    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.filters
         , name = "P_in"), training = is_train)
  
-    embedding, output = encoder_decoder_archi(inputs, is_train)
+    output = wave_archi(inputs)
 
     output = tf.layers.batch_normalization(tf.layers.dense(output, config.num_phos, name = "P_F"), training = is_train)
 
@@ -387,10 +391,10 @@ def f0_network(inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
 
-    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
+    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.filters
         , name = "F_in"), training = is_train)
 
-    embedding, output = encoder_decoder_archi(inputs, is_train)
+    output = wave_archi(inputs)
 
     output = tf.layers.batch_normalization(tf.layers.dense(output, config.num_f0, name = "F_F"), training = is_train)
 
@@ -440,12 +444,12 @@ def full_network(f0, phos,  singer_label, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len , 1, -1])
 
-    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.filters * 2
+    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.filters
         , name = "S_in"), training = is_train)
 
     # encoded = inputs
 
-    _, output = encoder_decoder_archi_full(inputs, is_train)
+    output = wave_archi(inputs)
 
     output = tf.layers.batch_normalization(tf.layers.dense(output, config.output_features, name = "Fu_F"), training = is_train)
 
