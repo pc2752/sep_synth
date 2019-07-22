@@ -286,7 +286,7 @@ def wave_archi(inputs, is_train):
 def encoder_conv_block(inputs, layer_num, is_train, num_filters = config.filters):
 
     output = tf.layers.batch_normalization(tf.nn.relu(tf.layers.conv2d(inputs, num_filters * 2**int(layer_num/2), (config.filter_len,1)
-        , strides=(2,1),  padding = 'same', name = "G_"+str(layer_num))), training = is_train)
+        , strides=(2,1),  padding = 'same', name = "G_"+str(layer_num), kernel_initializer=tf.random_normal_initializer(stddev=0.02))), training = is_train, name = "GBN_"+str(layer_num))
     return output
 
 def decoder_conv_block(inputs, layer, layer_num, is_train, num_filters = config.filters):
@@ -296,7 +296,7 @@ def decoder_conv_block(inputs, layer, layer_num, is_train, num_filters = config.
     # embedding = tf.tile(embedding,[1,int(config.max_phr_len/2**(config.encoder_layers - 1 - layer_num)),1,1])
 
     deconv = tf.layers.batch_normalization( tf.nn.relu(tf.layers.conv2d(deconv, layer.shape[-1]
-        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num))), training = is_train)
+        , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "D_"+str(layer_num), kernel_initializer=tf.random_normal_initializer(stddev=0.02))), training = is_train, name =  "DBN_"+str(layer_num))
 
     # embedding =tf.nn.relu(tf.layers.conv2d(embedding, layer.shape[-1]
     #     , (config.filter_len,1), strides=(1,1),  padding = 'same', name =  "DEnc_"+str(layer_num)))
@@ -378,7 +378,7 @@ def phone_network(inputs, is_train):
     inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
         , name = "P_in"), training = is_train)
  
-    output = wave_archi(inputs, is_train)
+    output = encoder_decoder_archi(inputs, is_train)
 
 
     output = tf.layers.batch_normalization(tf.layers.dense(output, config.num_phos, name = "P_F"), training = is_train)
@@ -395,7 +395,7 @@ def f0_network(inputs, is_train):
         , name = "F_in"), training = is_train)
 
 
-    output = wave_archi(inputs, is_train)
+    output = encoder_decoder_archi(inputs, is_train)
 
 
     output = tf.layers.batch_normalization(tf.layers.dense(output, config.num_f0, name = "F_F"), training = is_train)
@@ -409,7 +409,7 @@ def singer_network(inputs, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len, 1, -1])
 
-    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters*2
+    inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.wavenet_filters
         , name = "S_in"), training = is_train)
 
     encoded = inputs
@@ -450,7 +450,7 @@ def full_network(f0, phos,  singer_label, is_train):
         , name = "S_in"), training = is_train)
 
 
-    output = wave_archi(inputs, is_train)
+    output = encoder_decoder_archi(inputs, is_train)
 
 
     output = tf.tanh(tf.layers.batch_normalization(tf.layers.dense(output, config.output_features, name = "Fu_F", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train, name = "bn_fu_out"))
@@ -465,16 +465,26 @@ def discriminator(inputs, phos, f0, singer_label, is_train):
 
     inputs = tf.reshape(inputs, [config.batch_size, config.max_phr_len , 1, -1])
 
+
+
     inputs = tf.layers.batch_normalization(tf.layers.dense(inputs, config.filters
         , name = "S_in", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train, name = "bn_fu_1")
 
     # encoded = inputs
 
-    output = wave_archi(inputs, is_train)
+    encoded = inputs
 
-    output = tf.layers.batch_normalization(tf.layers.dense(output, 1, name = "Fu_F", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train, name = "bn_fu_out")
+    for i in range(config.encoder_layers):
+        encoded = encoder_conv_block(encoded, i, is_train)
+    encoded = tf.squeeze(encoded)
+    # output = tf.layers.batch_normalization(tf.layers.dense(encoded, config.num_singers, name = "S_F"), training = is_train, name = "bn_dis")
 
-    return tf.squeeze(output[:,int(config.max_phr_len/2)-2:int(config.max_phr_len/2)+1, :])
+    # output = wave_archi(inputs, is_train)
+
+    output = tf.layers.batch_normalization(tf.layers.dense(encoded, 1, name = "Fu_F", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train, name = "bn_fu_out")
+
+    return tf.squeeze(output)
+    # tf.squeeze(output[:,int(config.max_phr_len/2)-2:int(config.max_phr_len/2)+1, :])
 
 def main():    
     vec = tf.placeholder("float", [config.batch_size, config.max_phr_len, config.input_features])

@@ -108,11 +108,11 @@ def data_gen_pho(mode = 'Train', sec_mode = 0):
                     if Flag:
                         pho_targs.append(pho_target[voc_idx:voc_idx+config.max_phr_len])
 
-            mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
+        mix_in = (np.array(mix_in) - min_voc)/(max_voc - min_voc)
 
-            assert mix_in.max()<=1.0 and mix_in.min()>=0
+        assert mix_in.max()<=1.0 and mix_in.min()>=0
 
-            yield mix_in, pho_targs
+        yield mix_in, pho_targs
 
 
 
@@ -255,13 +255,13 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
                     pho_t = pho_target[voc_idx:voc_idx+config.max_phr_len]
 
-                    if voc_to_open.startswith('nus'):
+                    # if voc_to_open.startswith('nus'):
 
-                        pho_t = [config.phonemas_all.index(config.phonemas[int(x)]) for x in pho_t]
-                        # import pdb;pdb.set_trace()
-                    elif voc_to_open.startswith('casas'):
-                        pho_t = [config.phonemas_all.index(config.phonemas_full[int(x)]) for x in pho_t[:,1]]
-                        # import pdb;pdb.set_trace()
+                    #     pho_t = [config.phonemas_all.index(config.phonemas[int(x)]) for x in pho_t]
+                    #     # import pdb;pdb.set_trace()
+                    # elif voc_to_open.startswith('casas'):
+                    #     pho_t = [config.phonemas_all.index(config.phonemas_full[int(x)]) for x in pho_t[:,1]]
+                    #     # import pdb;pdb.set_trace()
 
 
                     pho_targs.append(pho_t)

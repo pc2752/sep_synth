@@ -11,6 +11,9 @@ def train(_):
     model = models.MultiSynth()
     model.train()
 
+def train_phone(_):
+    model = models.Phone_Net()
+    model.train()
 def eval_hdf5_file(file_name, file_name_singer):
     model = models.MultiSynth()
     model.test_file_hdf5(file_name, file_name_singer)
@@ -51,3 +54,7 @@ if __name__ == '__main__':
                         else:
                             print("Synthesizing second singer.")
                             eval_hdf5_file(file_name, file_name_singer)
+        elif sys.argv[1] == '-p' or sys.argv[1] == '--t' or sys.argv[1] == '--phone' or sys.argv[1] == '-phone':
+            if len(sys.argv)<3:
+                print("Training Phone")
+                tf.app.run(main=train_phone)

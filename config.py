@@ -15,7 +15,10 @@ voice_dir = '../ss_synthesis/voice/'
 backing_dir = '../ss_synthesis/backing/'
 
 
-log_dir = './log_nr_wavenet/'
+log_dir = './log_encode/'
+
+
+log_dir_phone = './log_nr_wavenet/'
 
 
 
@@ -66,7 +69,7 @@ phonemas_cat = ['B', 'U', 'g', 'S', 'k', 'm', 'O', 'dZ', 'J', 'Z', 'tS', 'ts', '
 phonemas_full = list(set(phonemas_esp+phonemas_cat))
 phonemas_all = list(set(phonemas+phonemas_full))
 
-num_phos = len(phonemas_all)
+num_phos = len(phonemas)
 
 do_not_use = ['casascat_Miguel_a0057.hdf5', 'casasesp_JosepC_a0112.hdf5', 'casasesp_Miriam_a0077.hdf5', 'casasesp_Miguel_a0068.hdf5', 'casascat_Miguel_a0086.hdf5', 'casascat_Pol_a0021.hdf5', 'casascat_Miguel_a0015.hdf5', 'casasesp_Pau_a0002.hdf5', 'casascat_Miguel_a0054.hdf5', 'casascat_Miguel_a0046.hdf5', 'casascat_Miguel_a0017.hdf5', 'casascat_Miguel_a0065.hdf5', 'casascat_Miguel_a0036.hdf5', 'casascat_Pol_a0007.hdf5', 'casascat_Miguel_a0091.hdf5', 'casasesp_Miriam_a0038.hdf5', 'casascat_Miquel_a0034.hdf5', 'casascat_Miguel_a0078.hdf5', 'casascat_Miguel_a0082.hdf5', 'casascat_Sara_a0026.hdf5', 'casascat_Miquel_a0015.hdf5', 'casascat_Miguel_a0090.hdf5', 'casasesp_Miguel_a0108.hdf5', 'casascat_Miquel_a0046.hdf5', 'casasesp_Miriam_a0041.hdf5', 'casascat_Miguel_a0052.hdf5', 'casascat_Miguel_a0095.hdf5', 'casasesp_Miguel_a0032.hdf5', 'casasesp_Miriam_a0015.hdf5', 'casascat_Miguel_a0012.hdf5', 'casascat_Miguel_a0014.hdf5', 'casascat_Anna_a0086.hdf5', 'casascat_Miguel_a0058.hdf5', 'casasesp_Miguel_a0118.hdf5', 'casascat_Miguel_a0079.hdf5', 'casasesp_Pol_a0119.hdf5', 'casascat_Miquel_a0002.hdf5', 'casascat_Miquel_a0028.hdf5', 'casascat_Miguel_a0019.hdf5', 'casascat_Pol_a0049.hdf5', 'casasesp_Miriam_a0083.hdf5', 'casascat_Miquel_a0059.hdf5', 'casascat_Miquel_a0094.hdf5', 'casascat_Miquel_a0036.hdf5', 'casascat_JosepC_a0035.hdf5', 'casascat_Miguel_a0075.hdf5', 'casascat_Miguel_a0051.hdf5', 'casascat_Miquel_a0074.hdf5', 'casascat_Miguel_a0077.hdf5', 'casasesp_Miguel_a0058.hdf5', 'casascat_Miguel_a0033.hdf5', 'casascat_Miguel_a0050.hdf5', 'casasesp_JosepC_a0086.hdf5', 'casasesp_Pol_a0063.hdf5', 'casascat_Miquel_a0035.hdf5', 'casascat_Miguel_a0005.hdf5', 'casascat_Miguel_a0009.hdf5', 'casasesp_Miguel_a0024.hdf5', 'casasesp_Pol_a0116.hdf5', 'casascat_Pol_a0090.hdf5', 'casascat_JosepC_a0026.hdf5', 'casascat_Miriam_a0038.hdf5', 'casascat_Pol_a0032.hdf5', 'casascat_Miguel_a0034.hdf5', 'casascat_JosepT_a0073.hdf5', 'casascat_Miguel_a0071.hdf5', 'casascat_Miguel_a0028.hdf5', 'casascat_Miriam_a0054.hdf5', 'casascat_Miguel_a0006.hdf5', 'casasesp_Pol_a0093.hdf5', 'casascat_Miguel_a0018.hdf5', 'casascat_Miguel_a0096.hdf5', 'casascat_Miguel_a0023.hdf5', 'casasesp_Miriam_a0035.hdf5', 'casasesp_Pau_a0006.hdf5', 'casasesp_Miriam_a0080.hdf5', 'casascat_Miquel_a0001.hdf5', 'casascat_Pol_a0083.hdf5', 'casascat_Miriam_a0035.hdf5', 'casascat_Pau_a0082.hdf5', 'casascat_Miquel_a0085.hdf5', 'casascat_Miguel_a0059.hdf5', 'casascat_Miguel_a0061.hdf5', 'casascat_Miquel_a0007.hdf5', 'casasesp_Mar_a0115.hdf5', 'casascat_Miguel_a0094.hdf5', 'casasesp_Miriam_a0060.hdf5', 'casasesp_JosepT_a0102.hdf5', 'casasesp_Miguel_a0090.hdf5', 'casasesp_Miguel_a0071.hdf5', 'casascat_Miguel_a0016.hdf5', 'casascat_Pol_a0044.hdf5', 'casasesp_Pol_a0120.hdf5', 'casasesp_Miguel_a0093.hdf5', 'casascat_Miguel_a0072.hdf5', 'casasesp_JosepT_a0095.hdf5', 'casascat_Miguel_a0083.hdf5', 'casasesp_Pau_a0070.hdf5', 'casasesp_JosepT_a0106.hdf5', 'casascat_Miguel_a0041.hdf5', 'casascat_Miriam_a0057.hdf5', 'casasesp_Pol_a0051.hdf5', 'casascat_Miguel_a0047.hdf5', 'casascat_Miguel_a0081.hdf5', 'casascat_Miguel_a0037.hdf5', 'casasesp_Pau_a0029.hdf5', 'casascat_Miquel_a0081.hdf5', 'casascat_Pol_a0006.hdf5', 'casasesp_JosepT_a0019.hdf5', 'casascat_Miguel_a0084.hdf5', 'casascat_Miguel_a0004.hdf5']
 

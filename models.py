@@ -96,13 +96,13 @@ class Phone_Net(Model):
         # Phoneme network loss and summary
 
 
-        self.pho_weights = tf.reduce_sum(config.phonemas_weights * self.phone_onehot_labels, axis=-1)
+        # self.pho_weights = tf.reduce_sum(config.phonemas_weights * self.phone_onehot_labels, axis=-1)
 
-        self.unweighted_losses = tf.nn.softmax_cross_entropy_with_logits(labels=self.phone_onehot_labels, logits = self.pho_logits)
+        # self.unweighted_losses = tf.nn.softmax_cross_entropy_with_logits(labels=self.phone_onehot_labels, logits = self.pho_logits)
 
-        self.weighted_losses = self.unweighted_losses * self.pho_weights
+        # self.weighted_losses = self.unweighted_losses * self.pho_weights
 
-        self.pho_loss = tf.reduce_mean(self.weighted_losses)
+        self.pho_loss = self.pho_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.phone_onehot_labels, logits = self.pho_logits))
 
         self.pho_acc = tf.metrics.accuracy(labels = self.phoneme_labels, predictions = self.pho_classes)
 
@@ -142,7 +142,7 @@ class Phone_Net(Model):
 
         self.phoneme_labels = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len),
                                         name='phoneme_placeholder')
-        self.phone_onehot_labels = tf.one_hot(indices=tf.cast(self.phoneme_labels, tf.int32), depth=42)
+        self.phone_onehot_labels = tf.one_hot(indices=tf.cast(self.phoneme_labels, tf.int32), depth=config.num_phos)
 
         self.is_train = tf.placeholder(tf.bool, name="is_train")
 
@@ -237,8 +237,8 @@ class Phone_Net(Model):
 
         self.loss_function()
         self.get_optimizers()
-        self.load_model(sess, config.log_dir)
-        self.get_summary(sess, config.log_dir)
+        self.load_model(sess, config.log_dir_phone)
+        self.get_summary(sess, config.log_dir_phone)
         start_epoch = int(sess.run(tf.train.get_global_step()) / (config.batches_per_epoch_train))
 
 
