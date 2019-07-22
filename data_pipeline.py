@@ -122,7 +122,8 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
     nus_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[1] not in ['ADIZ', 'JLEE', 'JTAN', 'KENN']]
 
-    pho_list = nus_list + casas_list[:int(0.8*len(casas_list))]
+    pho_list = nus_list 
+    # + casas_list[:int(0.8*len(casas_list))]
 
     mix_list_med = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('med') and not x.split('_')[1] in ['MusicDelta', 'ClaraBerryAndWooldog','ClaraBerryAndWooldog','CelestialShore', 'Schumann', 'Mozart', 'NightPanther', 'Debussy', 'HeladoNegro']]
 
