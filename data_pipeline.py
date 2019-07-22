@@ -120,7 +120,7 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
     casas_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('casas') and not x in config.do_not_use]
 
-    nus_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[3] not in ['15.hdf5','20.hdf5'] and not x.startswith('nus_KENN_read') ]
+    nus_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[1] not in ['ADIZ', 'JLEE', 'JTAN', 'KENN']]
 
     pho_list = nus_list + casas_list[:int(0.8*len(casas_list))]
 
@@ -128,9 +128,12 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
     mix_list = pho_list + mix_list_med[:int(0.8*len(mix_list_med))]
 
-    back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x.startswith('._') and not x.startswith('mir') and not x.startswith('med')]
+    back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x.startswith('._') and not x.startswith('mir') and not x.startswith('med') and not x.startswith('nus')]
 
-    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[3] in ['15.hdf5','20.hdf5']  and not x.startswith('nus_KENN_read')] + casas_list[int(0.8)*len(casas_list):]
+
+    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[1] in ['ADIZ', 'JLEE', 'JTAN', 'KENN'] and not x.startswith('nus_KENN_read')]
+     # + casas_list[int(0.8)*len(casas_list):]
+
     # + mix_list_med[int(0.8*len(mix_list_med)):]
 
     # import pdb;pdb.set_trace()
@@ -240,11 +243,12 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
             for j in range(config.samples_per_file):
                     voc_idx = np.random.randint(0,len(voc_stft)-config.max_phr_len)
-                    bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
+                    # bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
 
-                    mix_degree = np.clip(np.random.rand(1),0.0,0.9) 
+                    # mix_degree = np.clip(np.random.rand(1),0.0,0.9) 
 
-                    mix_stft = (voc_stft[voc_idx:voc_idx+config.max_phr_len,:] + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (1+mix_degree)
+                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:] 
+                        # + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (1+mix_degree)
 
                     mix_in.append(mix_stft)
 
@@ -276,13 +280,17 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
         pho_targs = np.array(pho_targs)
 
+        pho_targs = one_hotize(pho_targs, config.num_phos)
+
         voc_out = (np.array(voc_out) - min_feat)/(max_feat - min_feat)
 
         voc_out = voc_out[:,:,:-2]
 
         f0_out = np.array(f0_out)
 
-        singer_targs = np.array(singer_targs)
+        f0_out = one_hotize(f0_out, config.num_f0)
+
+        singer_targs = one_hotize(np.array(singer_targs), config.num_singers)
 
         # assert mix_in.max()<=1.0 and mix_in.min()>=0
 
@@ -307,23 +315,24 @@ def get_stats():
     max_mix = np.zeros(513)
     min_mix = np.ones(513)*1000    
 
-    for voc_to_open in voc_list:
+    for voc_to_open in back_list:
 
-        voc_file = h5py.File(config.voice_dir+voc_to_open, "r")
+        voc_file = h5py.File(config.backing_dir+voc_to_open, "r")
 
-        voc_stft = voc_file['voc_stft']
+        # voc_stft = voc_file['voc_stft']
 
-        feats = np.array(voc_file['feats'])
+        # feats = np.array(voc_file['feats'])
 
-        f0 = feats[:,-2]
+        # f0 = feats[:,-2]
 
-        med = np.median(f0[f0 > 0])
+        # med = np.median(f0[f0 > 0])
 
-        f0[f0==0] = med
+        # f0[f0==0] = med
 
-        feats[:,-2] = f0
+        # feats[:,-2] = f0
 
-        if np.isnan(feats).any():
+        # if np.isnan(feats).any():
+        if not 'back_stft' in voc_file:
             do_no_use.append(voc_to_open)
 
     #     maxi_voc_stft = np.array(voc_stft).max(axis=0)
