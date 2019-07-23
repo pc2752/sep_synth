@@ -390,7 +390,7 @@ class MultiSynth(Model):
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             self.final_train_function = self.final_optimizer.minimize(self.final_loss, global_step = self.global_step, var_list = self.final_params)
-            self.dis_train_function = self.final_optimizer.minimize(self.D_loss, global_step = self.global_step, var_list = self.d_params)
+            self.dis_train_function = self.dis_optimizer.minimize(self.D_loss, global_step = self.global_step, var_list = self.d_params)
             self.pho_train_function = self.pho_optimizer.minimize(self.pho_loss, global_step = self.global_step_pho, var_list = self.pho_params)
             self.f0_train_function = self.f0_optimizer.minimize(self.f0_loss, global_step = self.global_step_f0, var_list = self.f0_params)
             self.singer_train_function = self.singer_optimizer.minimize(self.singer_loss, global_step = self.global_step_singer, var_list = self.singer_params)
@@ -412,12 +412,16 @@ class MultiSynth(Model):
 #       self.pho_acc = tf.metrics.accuracy(labels = self.phoneme_labels, predictions = self.pho_classes)
         self.pho_acc = tf.metrics.accuracy(labels = tf.argmax(self.phone_onehot_labels, axis = -1), predictions = self.pho_classes)
 
+        self.pho_acc_val = tf.metrics.accuracy(labels = tf.argmax(self.phone_onehot_labels, axis = -1), predictions = self.pho_classes)
+
         self.singer_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.singer_onehot_labels, logits=self.singer_logits))
 
 
         # self.singer_acc = tf.metrics.accuracy(labels=self.singer_labels , predictions=self.singer_classes)
 
         self.singer_acc = tf.metrics.accuracy(labels = tf.argmax(self.singer_onehot_labels, axis = -1) , predictions=self.singer_classes)
+
+        self.singer_acc_val = tf.metrics.accuracy(labels = tf.argmax(self.singer_onehot_labels, axis = -1) , predictions=self.singer_classes)
 
 
         self.f0_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.f0_onehot_labels, logits=self.f0_logits))
@@ -430,6 +434,8 @@ class MultiSynth(Model):
         # + tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels= self.wave_placeholder, logits = self.output_wav))
 
         self.f0_acc = tf.metrics.accuracy(labels = tf.argmax(self.f0_onehot_labels, axis = -1) , predictions=self.f0_classes)
+
+        self.f0_acc_val = tf.metrics.accuracy(labels = tf.argmax(self.f0_onehot_labels, axis = -1) , predictions=self.f0_classes)
 
         self.final_loss = tf.reduce_sum(tf.abs(self.output_placeholder- (self.output/2+0.5)))/(config.batch_size*config.max_phr_len*64) + tf.reduce_mean(self.D_fake+1e-12)
 
@@ -452,19 +458,28 @@ class MultiSynth(Model):
 
         self.pho_acc_summary = tf.summary.scalar('pho_accuracy', self.pho_acc[0])
 
+        self.pho_acc_summary_val = tf.summary.scalar('pho_accuracy', self.pho_acc_val[0])
+
         self.final_summary = tf.summary.scalar('final_loss', self.final_loss)
 
         self.f0_summary = tf.summary.scalar('f0_loss', self.f0_loss)
 
         self.f0_acc_summary = tf.summary.scalar('f0_accuracy', self.f0_acc[0])
 
+        self.f0_acc_summary_val = tf.summary.scalar('f0_accuracy', self.f0_acc_val[0])
+
         self.singer_summary = tf.summary.scalar('singer_loss', self.singer_loss)
 
         self.singer_acc_summary = tf.summary.scalar('singer_accuracy', self.singer_acc[0])
 
+        self.singer_acc_summary_val = tf.summary.scalar('singer_accuracy', self.singer_acc_val[0])
+
+
+
         self.train_summary_writer = tf.summary.FileWriter(log_dir+'train/', sess.graph)
         self.val_summary_writer = tf.summary.FileWriter(log_dir+'val/', sess.graph)
-        self.summary = tf.summary.merge_all()
+        self.summary = tf.summary.merge([self.pho_summary,self.final_summary, self.pho_acc_summary,self.f0_summary, self.f0_acc_summary, self.singer_summary,self.singer_acc_summary])
+        self.summary_val = tf.summary.merge([self.pho_summary,self.final_summary, self.pho_acc_summary_val,self.f0_summary, self.f0_acc_summary_val, self.singer_summary,self.singer_acc_summary_val])
 
     def get_placeholders(self):
         """
@@ -520,6 +535,8 @@ class MultiSynth(Model):
         self.get_summary(sess, config.log_dir)
         start_epoch = int(sess.run(tf.train.get_global_step()) / (config.batches_per_epoch_train))
 
+        import pdb;pdb.set_trace()
+
 
         print("Start from: %d" % start_epoch)
 
@@ -559,6 +576,7 @@ class MultiSynth(Model):
             with tf.variable_scope('Training'):
                 for mix_in, singer_targs, voc_out, f0_out, pho_targs in data_generator:
 
+                	
 
                     final_loss, dis_loss, singer_loss, singer_acc, f0_loss, f0_acc, pho_loss, pho_acc, summary_str = self.train_model(mix_in, singer_targs, voc_out, f0_out,pho_targs, epoch, sess)
 
@@ -614,6 +632,8 @@ class MultiSynth(Model):
                 batch_num = 0
                 with tf.variable_scope('Validation'):
                     for mix_in, singer_targs, voc_out, f0_out, pho_targs in val_generator:
+                    	
+
                         final_loss, dis_loss, singer_loss, singer_acc, f0_loss, f0_acc, pho_loss, pho_acc, summary_str= self.validate_model(mix_in, singer_targs, voc_out, f0_out,pho_targs, sess)
                         val_final_loss+=final_loss
                         val_dis_loss+=dis_loss
@@ -672,6 +692,8 @@ class MultiSynth(Model):
         """
         Function to train the model for each epoch
         """
+        assert (np.argmax(singer_targs, axis = -1)>3).all()
+
         if epoch<25 or epoch%100 == 0:
             n_critic = 15
         else:
@@ -705,12 +727,13 @@ class MultiSynth(Model):
         """
         Function to train the model for each epoch
         """
+        assert (np.argmax(singer_targs, axis = -1)<4).all()
         feed_dict = {self.input_placeholder: mix_in,self.input_placeholder_singer: mix_in, self.singer_onehot_labels: singer_targs, self.output_placeholder: voc_out, self.f0_onehot_labels: f0_out, self.phone_onehot_labels: pho_targs, self.is_train: True}
 
         final_loss, dis_loss, singer_loss, singer_acc, pho_loss, pho_acc, f0_loss, f0_acc = sess.run(
-            [self.final_loss,self.D_loss, self.singer_loss, self.singer_acc, self.pho_loss, self.pho_acc, self.f0_loss, self.f0_acc], feed_dict=feed_dict)
+            [self.final_loss,self.D_loss, self.singer_loss, self.singer_acc_val, self.pho_loss, self.pho_acc_val, self.f0_loss, self.f0_acc_val], feed_dict=feed_dict)
 
-        summary_str = sess.run(self.summary, feed_dict=feed_dict)
+        summary_str = sess.run(self.summary_val, feed_dict=feed_dict)
 
 
         return final_loss, dis_loss, singer_loss, singer_acc[0], f0_loss, f0_acc[0], pho_loss, pho_acc[0], summary_str
@@ -756,14 +779,36 @@ class MultiSynth(Model):
 
         feat_file.close()
 
+        voc_stft = np.clip(voc_stft, 0.0, 1.0)
+
         return voc_stft, feats
+
+    def test_file_wav(self, file_name, file_name_singer):
+        """
+        Function to extract multi pitch from file. Currently supports only HDF5 files.
+        """
+        sess = tf.Session()
+        self.load_model(sess, log_dir = config.log_dir)
+        voc_stft, feats = self.read_hdf5_file(file_name)
+
+        voc_stft_singer, feats_singer = self.read_hdf5_file(file_name_singer)
+        out_feats = self.process_file(voc_stft, voc_stft_singer, sess)
+
+        self.plot_features(feats, out_feats)
+
+        import pdb;pdb.set_trace()
+
+        out_featss = np.concatenate((out_feats[:feats.shape[0]], feats[:out_feats.shape[0],-2:]), axis = -1)
+
+        utils.feats_to_audio(out_featss,file_name[:-4]+'gan_op.wav') 
+
 
     def test_file_hdf5(self, file_name, file_name_singer):
         """
         Function to extract multi pitch from file. Currently supports only HDF5 files.
         """
         sess = tf.Session()
-        self.load_model(sess, log_dir = config.log_dir)
+        self.load_model(sess, log_dir = './log_encode/')
         voc_stft, feats = self.read_hdf5_file(file_name)
 
         voc_stft_singer, feats_singer = self.read_hdf5_file(file_name_singer)
@@ -809,10 +854,10 @@ class MultiSynth(Model):
         stat_file.close()
 
 
-        if len(voc_stft)>len(voc_stft_singer):
-            voc_stft = voc_stft[:len(voc_stft_singer)]
-        else:
-            voc_stft_singer = voc_stft_singer[:len(voc_stft)]
+        # if len(voc_stft)>len(voc_stft_singer):
+        #     voc_stft = voc_stft[:len(voc_stft_singer)]
+        # else:
+        #     voc_stft_singer = voc_stft_singer[:len(voc_stft)]
 
         in_batches_stft, nchunks_in = utils.generate_overlapadd(voc_stft)
 
@@ -824,11 +869,26 @@ class MultiSynth(Model):
 
 
         out_batches_feats = []
+        out_batches_f0 = []
 
-        for in_batch_stft, in_batch_stft_singer in zip(in_batches_stft, in_batches_stft_singer) :
-            feed_dict = {self.input_placeholder: in_batch_stft,self.input_placeholder_singer: in_batch_stft_singer, self.is_train: False}
-            out_feats = sess.run(self.output_decoded, feed_dict=feed_dict)
+        out_batches_singer = []
+
+        for in_batch_stft_singer in in_batches_stft_singer:
+        	feed_dict = {self.input_placeholder_singer: in_batch_stft_singer, self.is_train: False}
+        	singer_est = sess.run(self.singer_probs, feed_dict=feed_dict)
+        	out_batches_singer.append(singer_est)
+
+        singer_emb = np.tile(np.mean(np.mean(np.array(out_batches_singer), axis = 0), axis = 0), [config.batch_size, 1])
+
+
+
+        for in_batch_stft in in_batches_stft :
+            feed_dict = {self.input_placeholder: in_batch_stft, self.is_train: False}
+            f0_est, pho_est = sess.run([self.f0_probs, self.pho_probs], feed_dict=feed_dict)
+            feed_dict = { self.singer_onehot_labels: singer_emb, self.f0_onehot_labels: f0_est, self.phone_onehot_labels: pho_est, self.is_train: False}
+            out_feats = sess.run(self.output, feed_dict=feed_dict)
             out_batches_feats.append(out_feats)
+            out_batches_f0.append(f0_est)
 
         out_batches_feats = np.array(out_batches_feats)
 

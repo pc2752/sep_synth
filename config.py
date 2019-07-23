@@ -15,7 +15,7 @@ voice_dir = '../ss_synthesis/voice/'
 backing_dir = '../ss_synthesis/backing/'
 
 
-log_dir = './log_encode/'
+log_dir = './log_encode_2/'
 
 
 log_dir_phone = './log_nr_wavenet/'

@@ -432,7 +432,7 @@ def get_stats_phonems():
 def main():
     # gen_train_val()
     # get_stats()
-    gen = data_gen_full('val', sec_mode = 0)
+    gen = data_gen_full( sec_mode = 0)
     while True :
         start_time = time.time()
         mix_in, singer_targs, voc_out, f0_out, pho_targs = next(gen)
