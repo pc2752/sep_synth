@@ -17,6 +17,10 @@ def train_phone(_):
 def eval_hdf5_file(file_name, file_name_singer):
     model = models.MultiSynth()
     model.test_file_hdf5(file_name, file_name_singer)
+def eval_wav_file(file_name, file_name_singer):
+    model = models.MultiSynth()
+    model.test_file_wav(file_name, file_name_singer)
+
 
 if __name__ == '__main__':
     if len(sys.argv)<2 or sys.argv[1] == '-help' or sys.argv[1] == '--help' or sys.argv[1] == '--h' or sys.argv[1] == '-h':
@@ -45,7 +49,7 @@ if __name__ == '__main__':
                 else:
                     if len(sys.argv)<4:
                         print("Synthesizing with same singer.")
-                        eval_hdf5_file(file_name, file_name)
+                        eval_wav_file(file_name, file_name)
                     else:
                         file_name_singer = sys.argv[3]
                         if not file_name_singer in [x for x in os.listdir(config.voice_dir) if x.startswith('nus') or x.startswith('casas') or x.startswith('med')]:
@@ -53,7 +57,23 @@ if __name__ == '__main__':
                             print([x for x in os.listdir(config.voice_dir) if x.startswith('nus' )or x.startswith('casas') or x.startswith('med')])
                         else:
                             print("Synthesizing second singer.")
-                            eval_hdf5_file(file_name, file_name_singer)
+                            eval_wav_file(file_name, file_name_singer)
+        elif sys.argv[1] == '-w' or sys.argv[1] == '--w' or sys.argv[1] == '--wav' or sys.argv[1] == '-wav':
+            if len(sys.argv)<3:
+                print("Please give a wave file to evaluate")
+            else:
+                file_name = sys.argv[2]
+                if len(sys.argv)<4:
+                    print("Synthesizing with same singer.")
+                    eval_wav_file(file_name, file_name)
+                else:
+                    file_name_singer = sys.argv[3]
+                    if not file_name_singer in [x for x in os.listdir(config.voice_dir) if x.startswith('nus') or x.startswith('casas') or x.startswith('med')]:
+                        print("Currently only supporting hdf5 files which are in the dataset, will be expanded later.")
+                        print([x for x in os.listdir(config.voice_dir) if x.startswith('nus' )or x.startswith('casas') or x.startswith('med')])
+                    else:
+                        print("Synthesizing second singer.")
+                        eval_wav_file(file_name, file_name_singer)
         elif sys.argv[1] == '-p' or sys.argv[1] == '--t' or sys.argv[1] == '--phone' or sys.argv[1] == '-phone':
             if len(sys.argv)<3:
                 print("Training Phone")

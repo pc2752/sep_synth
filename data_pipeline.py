@@ -120,7 +120,7 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
     casas_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('casas') and not x in config.do_not_use]
 
-    nus_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') and x.split('_')[1] not in ['ADIZ', 'JLEE', 'JTAN', 'KENN']]
+    nus_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus')  and x.split('_')[3] not in ['15.hdf5','20.hdf5'] and not x.startswith('nus_KENN_read')]
 
     pho_list = nus_list 
     # + casas_list[:int(0.8*len(casas_list))]
@@ -132,8 +132,7 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
     back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x.startswith('._') and not x.startswith('mir') and not x.startswith('med') and not x.startswith('nus')]
 
 
-    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[1] in ['ADIZ', 'JLEE', 'JTAN', 'KENN'] and not x.startswith('nus_KENN_read')]
-     # + casas_list[int(0.8)*len(casas_list):]
+    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[3] in ['15.hdf5','20.hdf5']  and not x.startswith('nus_KENN_read')]     # + casas_list[int(0.8)*len(casas_list):]
 
     # + mix_list_med[int(0.8*len(mix_list_med)):]
 
@@ -243,13 +242,12 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
 
             for j in range(config.samples_per_file):
-                    voc_idx = np.random.randint(0,len(voc_stft)-config.max_phr_len)
-                    # bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
+                    voc_idx = np.random.randint(0,len(voc_stft)-config.max_phr_len) 
+                    bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
 
-                    # mix_degree = np.clip(np.random.rand(1),0.0,0.9) 
+                    mix_degree = np.clip(np.random.rand(1),0.0,0.9) 
 
-                    mix_stft = voc_stft[voc_idx:voc_idx+config.max_phr_len,:] 
-                        # + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (1+mix_degree)
+                    mix_stft = (voc_stft[voc_idx:voc_idx+config.max_phr_len,:] * np.clip(np.random.rand(1),0.4,0.8)  + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (1+mix_degree)
 
                     mix_in.append(mix_stft)
 
@@ -285,7 +283,7 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
         voc_out = (np.array(voc_out) - min_feat)/(max_feat - min_feat)
 
-        voc_out = voc_out[:,:,:-2]
+        voc_out = voc_out[:,:,:-1]
 
         f0_out = np.array(f0_out)
 
@@ -299,6 +297,118 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
         yield mix_in, singer_targs, voc_out, f0_out, pho_targs
 
+def data_gen_med(mode = 'Train', sec_mode = 0):
+
+    casas_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('casas') and not x in config.do_not_use]
+
+    nus_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus')  and x.split('_')[3] not in ['15.hdf5','20.hdf5'] and not x.startswith('nus_KENN_read')]
+
+    pho_list = nus_list 
+    # + casas_list[:int(0.8*len(casas_list))]
+
+    mix_list_med = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('med') and not x.split('_')[1] in ['MusicDelta', 'ClaraBerryAndWooldog','ClaraBerryAndWooldog','CelestialShore', 'Schumann', 'Mozart', 'NightPanther', 'Debussy', 'HeladoNegro']]
+
+    mix_list_ikala = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('ikala') ]
+
+    mix_list = pho_list + mix_list_med[:int(0.8*len(mix_list_med))]+ mix_list_ikala[:int(0.8*len(mix_list_ikala))]
+
+    back_list = [x for x in os.listdir(config.backing_dir) if x.endswith('.hdf5') and not x.startswith('._') and not x.startswith('mir') and not x.startswith('med') and not x.startswith('nus')]
+
+
+    val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[3] in ['15.hdf5','20.hdf5']  and not x.startswith('nus_KENN_read')] + casas_list[int(0.8)*len(casas_list):]+ mix_list_med[int(0.8*len(mix_list_med)):]+ mix_list_ikala[int(0.8*len(mix_list_ikala)):]
+
+    # import pdb;pdb.set_trace()
+
+
+    stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
+
+    max_feat = np.array(stat_file["feats_maximus"])
+    min_feat = np.array(stat_file["feats_minimus"])
+    max_voc = np.array(stat_file["voc_stft_maximus"])
+    min_voc = np.array(stat_file["voc_stft_minimus"])
+    max_back = np.array(stat_file["back_stft_maximus"])
+    min_back = np.array(stat_file["back_stft_minimus"])
+    max_mix = np.array(max_voc)+np.array(max_back)
+    stat_file.close()
+
+
+    max_files_to_process = int(config.batch_size/config.samples_per_file)
+
+    if mode == "Train":
+        num_batches = config.batches_per_epoch_train
+        file_list = pho_list
+
+    else: 
+        num_batches = config.batches_per_epoch_val
+        file_list = val_list
+
+    for k in range(num_batches):
+        pho_targs = []
+
+        # f0_targs = []
+
+        singer_targs = []
+
+        mix_in = []
+
+        voc_out = []
+
+        f0_out = []
+
+        for i in range(max_files_to_process):
+
+
+            voc_index = np.random.randint(0,len(file_list))
+            voc_to_open = file_list[voc_index]
+
+
+            voc_file = h5py.File(config.voice_dir+voc_to_open, "r")
+
+
+            voc_stft = np.array(voc_file['voc_stft'])
+
+            feats = np.array(voc_file['feats'])
+
+            if np.isnan(feats).any():
+                print("nan found")
+                import pdb;pdb.set_trace()
+
+
+            back_index = np.random.randint(0,len(back_list))
+
+            back_to_open = back_list[back_index]
+
+            back_file = h5py.File(config.backing_dir+back_to_open, "r")
+
+            back_stft = np.array(back_file['back_stft'])
+
+
+
+
+
+            for j in range(config.samples_per_file):
+                    voc_idx = np.random.randint(0,len(voc_stft)-config.max_phr_len) 
+                    bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
+
+                    mix_degree = np.clip(np.random.rand(1),0.0,0.9) 
+
+                    mix_stft = (voc_stft[voc_idx:voc_idx+config.max_phr_len,:] * np.clip(np.random.rand(1),0.4,0.8)  + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (1+mix_degree)
+
+                    mix_in.append(mix_stft)
+
+
+
+                    voc_out.append(feats[voc_idx:voc_idx+config.max_phr_len,:])
+
+
+        mix_in = np.clip(np.array(mix_in), 0.0, 1.0)
+
+
+        voc_out = (np.array(voc_out) - min_feat)/(max_feat - min_feat)
+
+        voc_out = voc_out[:,:,:-1]
+
+        yield mix_in, None, voc_out, None, None
 
 def get_stats():
     voc_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5') and x.startswith('nus') or x.startswith('med') or x.startswith('casas') and not x.startswith('nus_KENN_read') ]

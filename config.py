@@ -53,66 +53,26 @@ def get_teacher_prob(epoch):
 
 filter_len = 5
 encoder_layers = 9
-filters = 32
+filters = 64
 
 
 
 num_f0 = 256
 max_phr_len = 512
 input_features = 513
-output_features = 64
+output_features = 65
 
 
-phonemas = ['t', 'y', 'l', 'k', 'aa', 'jh', 'ae', 'ng', 'ah', 'hh', 'z', 'ey', 'f', 'uw', 'iy', 'ay', 'b', 's', 'd', 'Sil', 'p', 'n', 'sh', 'ao', 'g', 'ch', 'ih', 'eh', 'aw', 'sp', 'oy', 'th', 'w', 'ow', 'v', 'uh', 'm', 'er', 'zh', 'r', 'dh', 'ax']
+phonemas_nus = ['t', 'y', 'l', 'k', 'aa', 'jh', 'ae', 'ng', 'ah', 'hh', 'z', 'ey', 'f', 'uw', 'iy', 'ay', 'b', 's', 'd', 'Sil', 'p', 'n', 'sh', 'ao', 'g', 'ch', 'ih', 'eh', 'aw', 'sp', 'oy', 'th', 'w', 'ow', 'v', 'uh', 'm', 'er', 'zh', 'r', 'dh', 'ax']
 phonemas_esp = ['B', 'U', 'g', 'k', 'm', 'tS', 'J', 'L', 'x', 'n', 'i', 'r', 'a', 'o', 'w', 'j', 's', 'f', 'I', 'rr', 't', 'd', 'e', 'l', 'b', 'Sil', 'u', 'D', 'p', 'G', 'T']
 phonemas_cat = ['B', 'U', 'g', 'S', 'k', 'm', 'O', 'dZ', 'J', 'Z', 'tS', 'ts', 'n', 'r', 'i', 'a', 'z', 'w', 'o', 'ae', 'j', 's', 'f', 'I', 'rr', 't', 'd', 'e', 'l', 'N', 'b', 'Sil', 'u', 'L0', 'E', 'D', 'p', 'dz', 'G']
-phonemas_full = list(set(phonemas_esp+phonemas_cat))
-phonemas_all = list(set(phonemas+phonemas_full))
+phonemas_full = ['E', 'ae', 'a', 'L', 'I', 'U', 'j', 'dZ', 'm', 'T', 'p', 'd', 'o', 't', 'f', 'Z', 'w', 'D', 'n', 'G', 'e', 'L0', 'x', 'u', 'g', 'z', 'tS', 'O', 'dz', 'J', 'i', 'ts', 'Sil', 'l', 'B', 'rr', 's', 'S', 'N', 'b', 'k', 'r']
+phonemas_all = ['E', 'ae', 'hh', 'a', 'uh', 'L', 'I', 'U', 'iy', 'eh', 'j', 'm', 'dh', 'dZ', 'aa', 'T', 'th', 'ah', 'p', 'd', 'o', 'oy', 'sh', 't', 'f', 'ax', 'Z', 'w', 'D', 'uw', 'n', 'sp', 'er', 'ao', 'G', 'e', 'L0', 'y', 'ow', 'g', 'ch', 'x', 'u', 'z', 'tS', 'O', 'v', 'dz', 'zh', 'ng', 'J', 'jh', 'i', 'ts', 'Sil', 'ay', 'l', 'B', 'ey', 's', 'rr', 'S', 'N', 'b', 'aw', 'ih', 'k', 'r']
 
-num_phos = len(phonemas)
+num_phos = len(phonemas_nus)
 
 do_not_use = ['casascat_Miguel_a0057.hdf5', 'casasesp_JosepC_a0112.hdf5', 'casasesp_Miriam_a0077.hdf5', 'casasesp_Miguel_a0068.hdf5', 'casascat_Miguel_a0086.hdf5', 'casascat_Pol_a0021.hdf5', 'casascat_Miguel_a0015.hdf5', 'casasesp_Pau_a0002.hdf5', 'casascat_Miguel_a0054.hdf5', 'casascat_Miguel_a0046.hdf5', 'casascat_Miguel_a0017.hdf5', 'casascat_Miguel_a0065.hdf5', 'casascat_Miguel_a0036.hdf5', 'casascat_Pol_a0007.hdf5', 'casascat_Miguel_a0091.hdf5', 'casasesp_Miriam_a0038.hdf5', 'casascat_Miquel_a0034.hdf5', 'casascat_Miguel_a0078.hdf5', 'casascat_Miguel_a0082.hdf5', 'casascat_Sara_a0026.hdf5', 'casascat_Miquel_a0015.hdf5', 'casascat_Miguel_a0090.hdf5', 'casasesp_Miguel_a0108.hdf5', 'casascat_Miquel_a0046.hdf5', 'casasesp_Miriam_a0041.hdf5', 'casascat_Miguel_a0052.hdf5', 'casascat_Miguel_a0095.hdf5', 'casasesp_Miguel_a0032.hdf5', 'casasesp_Miriam_a0015.hdf5', 'casascat_Miguel_a0012.hdf5', 'casascat_Miguel_a0014.hdf5', 'casascat_Anna_a0086.hdf5', 'casascat_Miguel_a0058.hdf5', 'casasesp_Miguel_a0118.hdf5', 'casascat_Miguel_a0079.hdf5', 'casasesp_Pol_a0119.hdf5', 'casascat_Miquel_a0002.hdf5', 'casascat_Miquel_a0028.hdf5', 'casascat_Miguel_a0019.hdf5', 'casascat_Pol_a0049.hdf5', 'casasesp_Miriam_a0083.hdf5', 'casascat_Miquel_a0059.hdf5', 'casascat_Miquel_a0094.hdf5', 'casascat_Miquel_a0036.hdf5', 'casascat_JosepC_a0035.hdf5', 'casascat_Miguel_a0075.hdf5', 'casascat_Miguel_a0051.hdf5', 'casascat_Miquel_a0074.hdf5', 'casascat_Miguel_a0077.hdf5', 'casasesp_Miguel_a0058.hdf5', 'casascat_Miguel_a0033.hdf5', 'casascat_Miguel_a0050.hdf5', 'casasesp_JosepC_a0086.hdf5', 'casasesp_Pol_a0063.hdf5', 'casascat_Miquel_a0035.hdf5', 'casascat_Miguel_a0005.hdf5', 'casascat_Miguel_a0009.hdf5', 'casasesp_Miguel_a0024.hdf5', 'casasesp_Pol_a0116.hdf5', 'casascat_Pol_a0090.hdf5', 'casascat_JosepC_a0026.hdf5', 'casascat_Miriam_a0038.hdf5', 'casascat_Pol_a0032.hdf5', 'casascat_Miguel_a0034.hdf5', 'casascat_JosepT_a0073.hdf5', 'casascat_Miguel_a0071.hdf5', 'casascat_Miguel_a0028.hdf5', 'casascat_Miriam_a0054.hdf5', 'casascat_Miguel_a0006.hdf5', 'casasesp_Pol_a0093.hdf5', 'casascat_Miguel_a0018.hdf5', 'casascat_Miguel_a0096.hdf5', 'casascat_Miguel_a0023.hdf5', 'casasesp_Miriam_a0035.hdf5', 'casasesp_Pau_a0006.hdf5', 'casasesp_Miriam_a0080.hdf5', 'casascat_Miquel_a0001.hdf5', 'casascat_Pol_a0083.hdf5', 'casascat_Miriam_a0035.hdf5', 'casascat_Pau_a0082.hdf5', 'casascat_Miquel_a0085.hdf5', 'casascat_Miguel_a0059.hdf5', 'casascat_Miguel_a0061.hdf5', 'casascat_Miquel_a0007.hdf5', 'casasesp_Mar_a0115.hdf5', 'casascat_Miguel_a0094.hdf5', 'casasesp_Miriam_a0060.hdf5', 'casasesp_JosepT_a0102.hdf5', 'casasesp_Miguel_a0090.hdf5', 'casasesp_Miguel_a0071.hdf5', 'casascat_Miguel_a0016.hdf5', 'casascat_Pol_a0044.hdf5', 'casasesp_Pol_a0120.hdf5', 'casasesp_Miguel_a0093.hdf5', 'casascat_Miguel_a0072.hdf5', 'casasesp_JosepT_a0095.hdf5', 'casascat_Miguel_a0083.hdf5', 'casasesp_Pau_a0070.hdf5', 'casasesp_JosepT_a0106.hdf5', 'casascat_Miguel_a0041.hdf5', 'casascat_Miriam_a0057.hdf5', 'casasesp_Pol_a0051.hdf5', 'casascat_Miguel_a0047.hdf5', 'casascat_Miguel_a0081.hdf5', 'casascat_Miguel_a0037.hdf5', 'casasesp_Pau_a0029.hdf5', 'casascat_Miquel_a0081.hdf5', 'casascat_Pol_a0006.hdf5', 'casasesp_JosepT_a0019.hdf5', 'casascat_Miguel_a0084.hdf5', 'casascat_Miguel_a0004.hdf5']
 
-# phonemas_weights = [1.91694048e-03, 3.13983774e-03, 2.37052131e-03, 3.88045684e-03,
-#        1.41986299e-03, 1.12648565e-02, 3.30023014e-03, 5.00321922e-03,
-#        5.87243483e-04, 4.37742526e-03, 1.97692391e-02, 9.70398460e-04,
-#        3.21655616e-03, 1.35928733e-03, 5.93524695e-04, 5.65175305e-04,
-#        6.80717094e-03, 1.10015365e-03, 4.38444037e-03, 1.70260315e-04,
-#        8.75424154e-03, 1.16470447e-03, 8.02211731e-03, 1.75907101e-03,
-#        8.74937266e-03, 1.27897334e-02, 1.20364751e-03, 8.12214268e-04,
-#        3.27038554e-03, 2.33057364e-01, 1.74212315e-02, 2.22823967e-02,
-#        2.25256804e-03, 8.29516836e-04, 6.36704322e-03, 1.80612767e-02,
-#        2.42758721e-03, 1.96789743e-03, 5.61834716e-01, 2.38381211e-03,
-#        8.39230304e-03]
-
-phonemas_weights = np.ones(42)*0.9
-phonemas_weights[19] = 0.5
-phonemas_weights[15] = 0.75
-phonemas_weights[8] = 0.75
-phonemas_weights[14] = 0.75
-phonemas_weights[27] = 0.8
-phonemas_weights[33] = 0.8
-phonemas_weights[11] = 0.8
-phonemas_weights[17] = 0.85
-phonemas_weights[21] = 0.85
-phonemas_weights[13] = 0.85
-phonemas_weights[4] = 0.85
-phonemas_weights[34] = 0.95
-phonemas_weights[16] = 0.95
-phonemas_weights[22] = 0.95
-phonemas_weights[40] = 0.95
-phonemas_weights[24] = 0.95
-phonemas_weights[20] = 0.95
-phonemas_weights[5] = 0.95
-phonemas_weights[25] = 0.95
-phonemas_weights[30] = 0.95
-phonemas_weights[35] = 0.95
-phonemas_weights[10] = 0.95
-phonemas_weights[31] = 0.95
-phonemas_weights[29] = 1.0
-phonemas_weights[38] = 1.0
-
-val_files = 30
 
 singers = ['ADIZ', 'JLEE', 'JTAN', 'KENN', 'MCUR', 'MPOL', 'MPUR', 'NJAT', 'PMAR', 'SAMF', 'VKOW' ,'ZHIY']
 # ,'Miriam', 'Anna', 'Pau', 'Mar', 'Pol', 'Irene', 'Sara', 'JosepC', 'JosepT', 'Clara', 'Miguel', 'Miquel']
@@ -159,7 +119,7 @@ hoptime = 5.80498866
 
 noise = 0.05
 
-wavenet_layers = 7
+wavenet_layers = 6
 rec_field = 2**wavenet_layers
 wavenet_filters = 64
 
