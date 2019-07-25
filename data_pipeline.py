@@ -247,7 +247,9 @@ def data_gen_full(mode = 'Train', sec_mode = 0):
 
                     mix_degree = np.clip(np.random.rand(1),0.0,0.9) 
 
-                    mix_stft = (voc_stft[voc_idx:voc_idx+config.max_phr_len,:] * np.clip(np.random.rand(1),0.4,0.8)  + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (1+mix_degree)
+                    voc_degree = np.clip(np.random.rand(1),0.4,0.9) 
+
+                    mix_stft = (voc_stft[voc_idx:voc_idx+config.max_phr_len,:] * voc_degree  + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (voc_degree+mix_degree)
 
                     mix_in.append(mix_stft)
 
@@ -389,10 +391,12 @@ def data_gen_med(mode = 'Train', sec_mode = 0):
             for j in range(config.samples_per_file):
                     voc_idx = np.random.randint(0,len(voc_stft)-config.max_phr_len) 
                     bac_idx = np.random.randint(0,len(back_stft)-config.max_phr_len)
-
+                    
                     mix_degree = np.clip(np.random.rand(1),0.0,0.9) 
 
-                    mix_stft = (voc_stft[voc_idx:voc_idx+config.max_phr_len,:] * np.clip(np.random.rand(1),0.4,0.8)  + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (1+mix_degree)
+                    voc_degree = np.clip(np.random.rand(1),0.4,0.9) 
+
+                    mix_stft = (voc_stft[voc_idx:voc_idx+config.max_phr_len,:] * voc_degree  + back_stft[bac_idx:bac_idx+config.max_phr_len,:] * mix_degree) / (voc_degree+mix_degree)
 
                     mix_in.append(mix_stft)
 
