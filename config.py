@@ -56,6 +56,12 @@ encoder_layers = 9
 filters = 64
 
 
+kernel_size = 2
+num_filters = 100
+skip_filters = 240
+first_conv = 10
+dilation_rates = [1,2,4,1,2]
+wavenet_layers = 5
 
 num_f0 = 256
 max_phr_len = 512
@@ -119,13 +125,13 @@ hoptime = 5.80498866
 
 noise = 0.05
 
-wavenet_layers = 6
+
 rec_field = 2**wavenet_layers
 wavenet_filters = 64
 
 print_every = 1
 save_every = 50
-validate_every =1 
+validate_every = 20 
 
 use_gan = False
 gan_lr = 0.001

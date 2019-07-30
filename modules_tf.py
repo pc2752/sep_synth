@@ -17,6 +17,61 @@ tf.logging.set_verbosity(tf.logging.INFO)
 
 
 
+def wavenet_block(inputs, conditioning, is_train, dilation_rate = 2, kernel_size = config.kernel_size, name = "name"):
+
+    pad = (kernel_size - 1) * dilation_rate
+
+    conditioning = tf.layers.batch_normalization(tf.layers.conv1d(conditioning, config.num_filters, 1, dilation_rate = 1, padding = 'valid', name = name+"_cond"), training = is_train)
+
+    con_pad_forward = tf.pad(inputs, [[0,0],[dilation_rate,0],[0,0]],"CONSTANT")
+
+    con_sig_forward = tf.layers.batch_normalization(tf.layers.conv1d(con_pad_forward, config.num_filters, kernel_size, dilation_rate = dilation_rate, padding = 'valid', name = name+"_1"), training = is_train)
+
+    sig = tf.sigmoid(con_sig_forward + conditioning)
+
+    con_tanh_forward = tf.layers.batch_normalization(tf.layers.conv1d(con_pad_forward, config.num_filters, kernel_size, dilation_rate = dilation_rate, padding = 'valid', name = name+"_2"), training = is_train)
+
+    tanh = tf.tanh(con_tanh_forward + conditioning)
+
+    outputs = tf.multiply(sig,tanh)
+
+    residual = outputs + inputs
+
+    skip = tf.layers.conv1d(outputs,config.skip_filters,1, name = name+"_skip")
+
+    residual = tf.layers.conv1d(residual,config.num_filters,1, name = name+"_residual")
+    
+    return skip, residual
+
+def wave_archi(inputs, conditioning, is_train):
+
+
+    receptive_field = 2**config.wavenet_layers
+
+    inputs = tf.pad(inputs, [[0,0],[config.first_conv -1 ,0],[0,0]],"CONSTANT")
+
+    residual = tf.layers.batch_normalization(tf.layers.conv1d(inputs, config.num_filters, config.first_conv, name = "first_conv"), training = is_train)
+
+    skips = []
+
+    output = tf.layers.conv1d(residual,config.skip_filters,1, name = "first_skip")
+
+    for i in range(config.wavenet_layers):
+        skip, residual = wavenet_block(residual,conditioning, is_train, dilation_rate = config.dilation_rates[i], name = "npss_block_"+str(i+1))
+        skips.append(skip)
+    for skip in skips:
+        output+=skip
+
+    conditioning = tf.layers.batch_normalization(tf.layers.conv1d(conditioning, config.skip_filters, 1, dilation_rate = 1, padding = 'valid', name = "cond"), training = is_train)
+
+    output = output + conditioning
+
+    output = tf.nn.tanh(output)
+
+    output = tf.layers.conv1d(output,config.num_phos,1, name = "Output" )
+
+    return output
+
 
 
 def deconv2d(input_, output_shape,
@@ -254,32 +309,32 @@ def nr_wavenet_block(inputs, is_train, dilation_rate = 2, name = "name"):
     return skip, residual
 
 
-def wave_archi(inputs, is_train):
+# def wave_archi(inputs, is_train):
 
-    inputs = tf.squeeze(inputs)
+#     inputs = tf.squeeze(inputs)
 
-    prenet_out = tf.layers.dense(inputs, config.filters, name = "Phone1")
+#     prenet_out = tf.layers.dense(inputs, config.filters, name = "Phone1")
 
-    receptive_field = 2**config.wavenet_layers
+#     receptive_field = 2**config.wavenet_layers
 
-    first_conv = tf.layers.batch_normalization(tf.layers.conv1d(prenet_out, config.filters, 1, name = "Phone2", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train, name = "Phone2BN")
-    skips = []
-    skip, residual = nr_wavenet_block(first_conv, is_train, dilation_rate = 1, name = "Phone_block_0")
-    output = skip
-    for i in range(config.wavenet_layers):
-        skip, residual = nr_wavenet_block(residual, is_train, dilation_rate = 2**(i+1), name = "Phone_block_"+str(i+1))
-        skips.append(skip)
-    for skip in skips:
-        output+=skip
-    output = output+first_conv
+#     first_conv = tf.layers.batch_normalization(tf.layers.conv1d(prenet_out, config.filters, 1, name = "Phone2", kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train, name = "Phone2BN")
+#     skips = []
+#     skip, residual = nr_wavenet_block(first_conv, is_train, dilation_rate = 1, name = "Phone_block_0")
+#     output = skip
+#     for i in range(config.wavenet_layers):
+#         skip, residual = nr_wavenet_block(residual, is_train, dilation_rate = 2**(i+1), name = "Phone_block_"+str(i+1))
+#         skips.append(skip)
+#     for skip in skips:
+#         output+=skip
+#     output = output+first_conv
 
-    output = tf.nn.relu(output)
+#     output = tf.nn.relu(output)
 
-    output = tf.layers.batch_normalization(tf.layers.conv1d(output,config.filters,1, name = "P_F_1" , kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train, name = "P_F_1BN")
+#     output = tf.layers.batch_normalization(tf.layers.conv1d(output,config.filters,1, name = "P_F_1" , kernel_initializer=tf.random_normal_initializer(stddev=0.02)), training = is_train, name = "P_F_1BN")
 
-    output = tf.nn.relu(output)
+#     output = tf.nn.relu(output)
 
-    return tf.reshape(output, [config.batch_size, config.max_phr_len, 1, -1])
+#     return tf.reshape(output, [config.batch_size, config.max_phr_len, 1, -1])
 
 
 

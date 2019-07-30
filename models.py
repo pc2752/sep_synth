@@ -17,6 +17,14 @@ import soundfile as sf
 import matplotlib.pyplot as plt
 from scipy.ndimage import filters
 
+
+def one_hotize(inp, max_index=config.num_phos):
+
+
+    output = np.eye(max_index)[inp.astype(int)]
+
+    return output
+
 class Model(object):
     def __init__(self):
         self.get_placeholders()
@@ -137,92 +145,18 @@ class Phone_Net(Model):
         Depending on the mode, can return placeholders for either just the generator or both the generator and discriminator.
         """
 
-        self.input_placeholder = tf.placeholder(tf.float32, shape=(config.batch_size, config.max_phr_len, config.input_features),
+        self.input_placeholder = tf.placeholder(tf.float32, shape=(None, config.max_phr_len, config.num_phos),
                                            name='input_placeholder')
 
-        self.phoneme_labels = tf.placeholder(tf.int32, shape=(config.batch_size, config.max_phr_len),
-                                        name='phoneme_placeholder')
-        self.phone_onehot_labels = tf.one_hot(indices=tf.cast(self.phoneme_labels, tf.int32), depth=config.num_phos)
+        self.cond_placeholder = tf.placeholder(tf.float32, shape=(None, config.max_phr_len,config.input_features),
+                                           name='cond_placeholder')
+
+        self.phone_onehot_labels = tf.placeholder(tf.float32, shape=(None, config.max_phr_len, config.num_phos),
+                                           name='output_placeholder')       
+
+        self.phoneme_labels = tf.argmax(self.phone_onehot_labels, axis=-1)
 
         self.is_train = tf.placeholder(tf.bool, name="is_train")
-
-
-    def read_input_file(self, file_name):
-        """
-        Function to read and process input file, given name and the synth_mode.
-        Returns features for the file based on mode (0 for hdf5 file, 1 for wav file).
-        Currently, only the HDF5 version is implemented.
-        """
-        # if file_name.endswith('.hdf5'):
-        feat_file = h5py.File(config.feats_dir + file_name)
-        atb = feat_file['atb'][()]
-
-        # atb = atb[:, 1:]
-
-        hcqt = feat_file['voc_hcqt'][()]
-
-        feat_file.close()
-
-        in_batches_hcqt, nchunks_in = utils.generate_overlapadd(hcqt.reshape(-1,6*360))
-        in_batches_hcqt = in_batches_hcqt.reshape(in_batches_hcqt.shape[0], config.batch_size, config.max_phr_len,
-                                                  6, 360)
-        in_batches_hcqt = np.swapaxes(in_batches_hcqt, -1, -2)
-        return in_batches_hcqt, atb, nchunks_in
-
-    def read_input_wav_file(self, file_name):
-        """
-        Function to read and process input file, given name and the synth_mode.
-        Returns features for the file based on mode (0 for hdf5 file, 1 for wav file).
-        Currently, only the HDF5 version is implemented.
-        """
-        audio, fs = librosa.core.load(file_name, sr=config.fs)
-        hcqt = sig_process.get_hcqt(audio/4)
-
-        hcqt = np.swapaxes(hcqt, 0, 1)
-
-        in_batches_hcqt, nchunks_in = utils.generate_overlapadd(hcqt.reshape(-1,6*360))
-        in_batches_hcqt = in_batches_hcqt.reshape(in_batches_hcqt.shape[0], config.batch_size, config.max_phr_len,
-                                                  6, 360)
-        in_batches_hcqt = np.swapaxes(in_batches_hcqt, -1, -2)
-
-        return in_batches_hcqt, nchunks_in, hcqt.shape[0]
-
-
-
-
-    def test_file(self, file_name):
-        """
-        Function to extract multi pitch from file. Currently supports only HDF5 files.
-        """
-        sess = tf.Session()
-        self.load_model(sess, log_dir = config.log_dir)
-        scores = self.extract_f0_file(file_name, sess)
-        return scores
-
-    def test_wav_file(self, file_name, save_path):
-        """
-        Function to extract multi pitch from wav file.
-        """
-
-        sess = tf.Session()
-        self.load_model(sess, log_dir = config.log_dir)
-        in_batches_hcqt, nchunks_in, max_len = self.read_input_wav_file(file_name)
-        out_batches_atb = []
-        for in_batch_hcqt in in_batches_hcqt:
-            feed_dict = {self.input_placeholder: in_batch_hcqt, self.is_train: False}
-            out_atb = sess.run(self.outputs, feed_dict=feed_dict)
-            out_batches_atb.append(out_atb)
-        out_batches_atb = np.array(out_batches_atb)
-        out_batches_atb = utils.overlapadd(out_batches_atb.reshape(out_batches_atb.shape[0], config.batch_size, config.max_phr_len, -1),
-                         nchunks_in)
-        out_batches_atb = out_batches_atb[:max_len]
-        # plt.imshow(out_batches_atb.T, origin = 'lower', aspect = 'auto')
-        #
-        # plt.show()
-        # import pdb;pdb.set_trace()
-
-        time_1, ori_freq = utils.process_output(out_batches_atb)
-        utils.save_multif0_output(time_1, ori_freq, save_path)
 
 
 
@@ -260,7 +194,13 @@ class Phone_Net(Model):
             with tf.variable_scope('Training'):
                 for spec, phons in data_generator:
 
-                    step_loss, step_acc, summary_str = self.train_model(spec, phons, sess)
+                    cond = np.roll(phons, 1, 1)
+
+                    cond[:,0,:] = 0
+
+                    cond = cond + np.random.normal(0,.5,(cond.shape)) *0.8 
+
+                    step_loss, step_acc, summary_str = self.train_model(spec, phons, cond, sess)
                     epoch_train_loss+=step_loss
                     epoch_train_acc+=step_acc
 
@@ -277,23 +217,32 @@ class Phone_Net(Model):
                 print_dict["Training Accuracy"] =  epoch_train_acc
 
             if (epoch + 1) % config.validate_every == 0:
-                batch_num = 0
-                with tf.variable_scope('Validation'):
-                    for spec, phons in val_generator:
-                        step_loss, step_acc, summary_str = self.validate_model(spec, phons, sess)
-                        epoch_val_loss += step_loss
-                        epoch_val_acc += step_acc
+                accuracy, file_name = self.validate_file(sess)
+                print_dict["Validation Accuracy for {}".format(file_name)] = accuracy
 
-                        self.val_summary_writer.add_summary(summary_str, epoch)
-                        self.val_summary_writer.flush()
-                        batch_num+=1
+            batch_num = 0
+            with tf.variable_scope('Validation'):
+                for spec, phons in val_generator:
+                    cond = np.roll(phons, 1, 1)
 
-                        utils.progress(batch_num, config.batches_per_epoch_val, suffix='validation done')
+                    cond[:,0,:] = 0
 
-                    epoch_val_loss = epoch_val_loss / batch_num
-                    epoch_val_acc = epoch_val_acc / batch_num
-                    print_dict["Validation Loss"] = epoch_val_loss
-                    print_dict["Validation Accuracy"] = epoch_val_acc
+                    cond = cond + np.random.normal(0,.5,(cond.shape)) * 0.4 
+
+                    step_loss, step_acc, summary_str = self.validate_model(spec, phons, cond, sess)
+                    epoch_val_loss += step_loss
+                    epoch_val_acc += step_acc
+
+                    self.val_summary_writer.add_summary(summary_str, epoch)
+                    self.val_summary_writer.flush()
+                    batch_num+=1
+
+                    utils.progress(batch_num, config.batches_per_epoch_val, suffix='validation done')
+
+                epoch_val_loss = epoch_val_loss / batch_num
+                epoch_val_acc = epoch_val_acc / batch_num
+                print_dict["Validation Loss"] = epoch_val_loss
+                print_dict["Validation Accuracy"] = epoch_val_acc
 
 
             end_time = time.time()
@@ -302,51 +251,96 @@ class Phone_Net(Model):
             if (epoch + 1) % config.save_every == 0 or (epoch + 1) == config.num_epochs:
                 self.save_model(sess, epoch+1, config.log_dir)
 
-    def train_model(self, spec, phons, sess):
+    def train_model(self, spec, phons, cond, sess):
         """
         Function to train the model for each epoch
         """
-        feed_dict = {self.input_placeholder: spec, self.phoneme_labels: phons, self.is_train: True}
+        feed_dict = {self.cond_placeholder: spec, self.phone_onehot_labels: phons, self.input_placeholder: cond, self.is_train: True}
         _, step_loss, step_acc = sess.run(
             [self.train_function, self.pho_loss, self.pho_acc], feed_dict=feed_dict)
         summary_str = sess.run(self.summary, feed_dict=feed_dict)
 
         return step_loss, step_acc[0], summary_str
 
-    def validate_model(self,spec, phons, sess):
+    def validate_model(self, spec, phons, cond, sess):
         """
         Function to train the model for each epoch
         """
-        feed_dict = {self.input_placeholder: spec, self.phoneme_labels: phons, self.is_train: False}
+        feed_dict = {self.cond_placeholder: spec, self.phone_onehot_labels: phons, self.input_placeholder: cond, self.is_train: False}
 
         step_loss, step_acc = sess.run([self.pho_loss, self.pho_acc], feed_dict=feed_dict)
         summary_str = sess.run(self.summary, feed_dict=feed_dict)
         return step_loss, step_acc[0], summary_str
 
+    def validate_file(self, sess):
+        """
+        Function to train the model for each epoch
+        """
+        val_list = [x for x in os.listdir(config.voice_dir) if x.endswith('.hdf5')and x.startswith('nus') and x.split('_')[1] in ['ADIZ', 'JLEE', 'JTAN', 'KENN'] and not x.startswith('nus_KENN_read')]
+        voc_index = np.random.randint(0,len(val_list))
+        voc_to_open = val_list[voc_index]
 
-    def eval_all(self, file_name_csv):
-        sess = tf.Session()
-        self.load_model(sess, config.log_dir)
-        val_list = config.val_list
+        voc_stft, pho_target = self.read_hdf5_file(voc_to_open)
+
+        index = np.random.randint(0,len(voc_stft) - 2000)
+
+        out_phonemes = self.process_file(voc_stft[index:index+2000], sess)
+
+        accuracy = np.equal(pho_target[index:index+2000], np.argmax(out_phonemes, -1)).sum()/len(out_phonemes)
+
+        return accuracy, voc_to_open
+
+    def read_hdf5_file(self, file_name):
+        """
+        Function to read and process input file, given name and the synth_mode.
+        Returns features for the file based on mode (0 for hdf5 file, 1 for wav file).
+        Currently, only the HDF5 version is implemented.
+        """
+        # if file_name.endswith('.hdf5'):
+        stat_file = h5py.File(config.stat_dir+'stats.hdf5', mode='r')
+
+        max_feat = np.array(stat_file["feats_maximus"])
+        min_feat = np.array(stat_file["feats_minimus"])
+        max_voc = np.array(stat_file["voc_stft_maximus"])
+        min_voc = np.array(stat_file["voc_stft_minimus"])
+        max_back = np.array(stat_file["back_stft_maximus"])
+        min_back = np.array(stat_file["back_stft_minimus"])
+        stat_file.close()
+
+        with h5py.File(config.voice_dir + file_name) as feat_file:
+
+            pho_target = np.array(feat_file["phonemes"])
+            voc_stft = np.array(feat_file['voc_stft'])
+
+
+
+        # pho_target = one_hotize(pho_target)
+
+        voc_stft = (np.array(voc_stft) - min_voc)/(max_voc - min_voc)
+
+
+
+        return voc_stft, pho_target
+
+    def process_file(self, condi, sess):
+
+        conds = np.zeros((config.batch_size, config.max_phr_len, config.input_features))
+        outs = []
+        inps = np.zeros((config.batch_size, config.max_phr_len, config.num_phos))
+
         count = 0
-        scores = {}
-        for file_name in val_list:
-            file_score = self.test_file_all(file_name, sess)
-            if count == 0:
-                for key, value in file_score.items():
-                    scores[key] = [value]
-                scores['file_name'] = [file_name]
-            else:
-                for key, value in file_score.items():
-                    scores[key].append(value)
-                scores['file_name'].append(file_name)
 
-                # import pdb;pdb.set_trace()
-            count += 1
-            utils.progress(count, len(val_list), suffix='validation done')
-        utils.save_scores_mir_eval(scores, file_name_csv)
-
-        return scores
+        for con in condi:
+            conds = np.roll(conds, -1, 1)
+            conds[:,-1, :] = con
+            feed_dict = {self.input_placeholder: inps ,self.cond_placeholder: conds, self.is_train: False}
+            frame_op = sess.run(self.pho_probs, feed_dict=feed_dict)
+            outs.append(frame_op[0,-1,:])
+            inps = np.roll(inps, -1, 1)
+            inps[:,-1,:] = frame_op[:,-1,:]
+            count+=1
+            utils.progress(count,len(condi), suffix = 'Prediction Done')
+        return np.array(outs)
 
 
     def model(self):
@@ -357,7 +351,7 @@ class Phone_Net(Model):
         """
         with tf.variable_scope('phone_Model') as scope:
             # regularizer = tf.contrib.layers.l2_regularizer(scale=0.1)
-            self.pho_logits = modules.phone_network(self.input_placeholder, self.is_train)
+            self.pho_logits = modules.wave_archi(self.input_placeholder, self.cond_placeholder, self.is_train)
             self.pho_classes = tf.argmax(self.pho_logits, axis=-1)
             self.pho_probs = tf.nn.softmax(self.pho_logits)
 
@@ -862,7 +856,7 @@ class MultiSynth(Model):
         Function to extract multi pitch from file. Currently supports only HDF5 files.
         """
         sess = tf.Session()
-        self.load_model(sess, log_dir = './log_encode/')
+        self.load_model(sess, log_dir =  config.log_dir)
         voc_stft, feats = self.read_wav_file(file_name)
 
         voc_stft_singer, feats_singer = self.read_hdf5_file(file_name_singer)
@@ -882,7 +876,7 @@ class MultiSynth(Model):
         Function to extract multi pitch from file. Currently supports only HDF5 files.
         """
         sess = tf.Session()
-        self.load_model(sess, log_dir = './log_encode/')
+        self.load_model(sess, log_dir = config.log_dir)
         voc_stft, feats = self.read_hdf5_file(file_name)
 
         voc_stft_singer, feats_singer = self.read_hdf5_file(file_name_singer)
@@ -910,7 +904,12 @@ class MultiSynth(Model):
 
         ax3.set_title("Output STFT", fontsize=10)
 
-        plt.imshow(out_feats.T,aspect='auto',origin='lower')
+        plt.imshow(out_feats[:,:-1].T,aspect='auto',origin='lower')
+
+        plt.figure(2)
+
+        plt.plot(feats[:,-2])
+        plt.plot(out_feats[:,-1])
 
 
         plt.show()
@@ -928,10 +927,10 @@ class MultiSynth(Model):
         stat_file.close()
 
 
-        # if len(voc_stft)>len(voc_stft_singer):
-        #     voc_stft = voc_stft[:len(voc_stft_singer)]
-        # else:
-        #     voc_stft_singer = voc_stft_singer[:len(voc_stft)]
+        if len(voc_stft)>len(voc_stft_singer):
+            voc_stft = voc_stft[:len(voc_stft_singer)]
+        else:
+            voc_stft_singer = voc_stft_singer[:len(voc_stft)]
 
         in_batches_stft, nchunks_in = utils.generate_overlapadd(voc_stft)
 
@@ -947,21 +946,21 @@ class MultiSynth(Model):
 
         out_batches_singer = []
 
-        for in_batch_stft_singer in in_batches_stft_singer:
-            feed_dict = {self.input_placeholder_singer: in_batch_stft_singer, self.is_train: False}
-            singer_est = sess.run(self.singer_probs, feed_dict=feed_dict)
-            out_batches_singer.append(singer_est)
+        # for in_batch_stft_singer in in_batches_stft_singer:
+        #     feed_dict = {self.input_placeholder_singer: in_batch_stft_singer, self.is_train: False}
+        #     singer_est = sess.run(self.singer_probs, feed_dict=feed_dict)
+        #     out_batches_singer.append(singer_est)
 
-        singer_emb = np.tile(np.mean(np.mean(np.array(out_batches_singer), axis = 0), axis = 0), [config.batch_size, 1])
+        # singer_emb = np.tile(np.mean(np.mean(np.array(out_batches_singer), axis = 0), axis = 0), [config.batch_size, 1])
 
 
         # singer_emb = np.tile(one_hotize(np.argmax(np.mean(np.mean(np.array(out_batches_singer), axis = 0), axis = 0), axis = -1), config.num_singers), [config.batch_size, 1])
         # pho_est = one_hotize(np.argmax(pho_est, axis = -1), config.num_phos)
 
-        for in_batch_stft in in_batches_stft :
+        for in_batch_stft, in_batch_stft_singer in zip(in_batches_stft, in_batches_stft_singer) :
             feed_dict = {self.input_placeholder: in_batch_stft, self.is_train: False}
             f0_est, pho_est = sess.run([self.f0_probs, self.pho_probs], feed_dict=feed_dict)
-            feed_dict = { self.singer_onehot_labels: singer_emb, self.f0_onehot_labels: f0_est, self.phone_onehot_labels: pho_est, self.is_train: False}
+            feed_dict = {self.input_placeholder: in_batch_stft, self.input_placeholder_singer: in_batch_stft_singer, self.f0_onehot_labels: f0_est, self.phone_onehot_labels: pho_est, self.is_train: False}
             out_feats = sess.run(self.output, feed_dict=feed_dict)
             out_batches_feats.append(out_feats)
             out_batches_f0.append(f0_est)
@@ -976,7 +975,7 @@ class MultiSynth(Model):
 
         # out_batches_wav = out_batches_wav *2 -1
 
-        out_batches_feats = out_batches_feats*(max_feat[:-2] - min_feat[:-2]) + min_feat[:-2]
+        out_batches_feats = out_batches_feats*(max_feat[:-1] - min_feat[:-1]) + min_feat[:-1]
 
         return out_batches_feats
 

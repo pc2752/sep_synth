@@ -89,7 +89,7 @@ def data_gen_pho(mode = 'Train', sec_mode = 0):
                 else: 
                     Flag = True
                     pho_target = np.array(voc_file["phonemes"])
-                    pho_target = [config.phonemas_all.index(config.phonemas[x]) for x in pho_target]
+                    # pho_target = [config.phonemas_all.index(config.phonemas[x]) for x in pho_target]
                     # singer_name = voc_to_open.split('_')[1]
                     # singer_index = config.singers.index(singer_name)
             else:
@@ -112,7 +112,7 @@ def data_gen_pho(mode = 'Train', sec_mode = 0):
 
         assert mix_in.max()<=1.0 and mix_in.min()>=0
 
-        yield mix_in, pho_targs
+        yield mix_in, one_hotize(np.array(pho_targs))
 
 
 
